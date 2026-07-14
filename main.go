@@ -5,7 +5,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/faiface/beep"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/mcbalaam/ebitter/pkg/assets"
 	"github.com/mcbalaam/ebitter/pkg/engine"
@@ -112,7 +111,7 @@ func (g *Game) Layout(_, _ int) (int, int) {
 func main() {
 	assets.ProcessFonts()
 
-	player, err := sound.NewSoundPlayer(beep.SampleRate(44100))
+	player, err := sound.NewSoundPlayer(44100)
 	if err != nil {
 		log.Fatalf("sound: %v", err)
 	}
