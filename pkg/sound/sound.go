@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"os"
 	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2/audio"
 	"github.com/hajimehoshi/ebiten/v2/audio/wav"
+	"github.com/mcbalaam/ebitter/pkg/embedfs"
 )
 
 type SoundPlayer struct {
@@ -36,7 +36,7 @@ func (s *SoundPlayer) Shutdown() {
 }
 
 func (s *SoundPlayer) RegisterNewSound(path string, name string) error {
-	f, err := os.Open(path)
+	f, err := embedfs.FS.Open(path)
 	if err != nil {
 		return fmt.Errorf("open %s: %w", path, err)
 	}

@@ -5,7 +5,7 @@ import (
 	"image"
 	"image/png"
 	"io"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/mcbalaam/ebitter/pkg/assets"
+	"github.com/mcbalaam/ebitter/pkg/embedfs"
 )
 
 // AtlasMeta is a single atlas entity (png + aseprite-style JSON)
@@ -33,15 +34,7 @@ var DefaultManager = &AtlasManager{
 }
 
 func (m *AtlasManager) CacheIconStates(path string) error {
-	info, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-	if !info.IsDir() {
-		return fmt.Errorf("path is not a directory: %s", path)
-	}
-
-	entries, err := os.ReadDir(path)
+	entries, err := fs.ReadDir(embedfs.FS, path)
 	if err != nil {
 		return err
 	}
@@ -56,7 +49,7 @@ func (m *AtlasManager) CacheIconStates(path string) error {
 		}
 
 		jsonPath := filepath.Join(path, name)
-		b, err := os.ReadFile(jsonPath)
+		b, err := fs.ReadFile(embedfs.FS, jsonPath)
 		if err != nil {
 			return err
 		}
@@ -68,8 +61,8 @@ func (m *AtlasManager) CacheIconStates(path string) error {
 
 		base := strings.TrimSuffix(name, filepath.Ext(name))
 		pngPath := filepath.Join(path, base+".png")
-		if _, err := os.Stat(pngPath); err == nil {
-			f, err := os.Open(pngPath)
+		if _, err := fs.Stat(embedfs.FS, pngPath); err == nil {
+			f, err := embedfs.FS.Open(pngPath)
 			if err != nil {
 				return fmt.Errorf("open png %s: %w", pngPath, err)
 			}
@@ -177,14 +170,14 @@ func (m *AtlasManager) LoadIconState(key string) (IconState, error) {
 	jsonPath := filepath.Join(spritesDir, atlasName+".json")
 	pngPath := filepath.Join(spritesDir, atlasName+".png")
 
-	if _, err := os.Stat(jsonPath); err != nil {
+	if _, err := fs.Stat(embedfs.FS, jsonPath); err != nil {
 		return IconState{}, fmt.Errorf("json not found for atlas %q: %w", atlasName, err)
 	}
-	if _, err := os.Stat(pngPath); err != nil {
+	if _, err := fs.Stat(embedfs.FS, pngPath); err != nil {
 		return IconState{}, fmt.Errorf("png not found for atlas %q: %w", atlasName, err)
 	}
 
-	b, err := os.ReadFile(jsonPath)
+	b, err := fs.ReadFile(embedfs.FS, jsonPath)
 	if err != nil {
 		return IconState{}, err
 	}
@@ -193,7 +186,7 @@ func (m *AtlasManager) LoadIconState(key string) (IconState, error) {
 		return IconState{}, fmt.Errorf("assets json: %w", err)
 	}
 
-	f, err := os.Open(pngPath)
+	f, err := embedfs.FS.Open(pngPath)
 	if err != nil {
 		return IconState{}, err
 	}

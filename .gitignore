@@ -30,3 +30,8 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+ebitter
+ebitter.wasm
+wasm_exec.js
+docs/

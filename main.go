@@ -1,17 +1,25 @@
 package main
 
 import (
+	"embed"
 	"log"
 	"math"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/mcbalaam/ebitter/pkg/assets"
+	"github.com/mcbalaam/ebitter/pkg/embedfs"
 	"github.com/mcbalaam/ebitter/pkg/engine"
 	"github.com/mcbalaam/ebitter/pkg/engine/queues"
 	"github.com/mcbalaam/ebitter/pkg/render"
 	"github.com/mcbalaam/ebitter/pkg/sound"
 )
+
+//go:embed media
+var mediaFS embed.FS
+
+func init() {
+	embedfs.SetFS(mediaFS)
+}
 
 const version = "v0.98"
 
@@ -109,8 +117,6 @@ func (g *Game) Layout(_, _ int) (int, int) {
 }
 
 func main() {
-	assets.ProcessFonts()
-
 	player, err := sound.NewSoundPlayer(44100)
 	if err != nil {
 		log.Fatalf("sound: %v", err)
