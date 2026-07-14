@@ -127,7 +127,7 @@ func main() {
 		player.PlayBackground("bgm", 1)
 	}
 
-	splash, err := NewSplashText("media/sprites/determination", "ebitter  "+version, 320, 240, 0.4)
+	splash, err := NewSplashText("media/sprites/determination", "ebitter   "+version, 320, 240, 0.4)
 	if err != nil {
 		log.Fatalf("splash: %v", err)
 	}
