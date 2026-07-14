@@ -30,13 +30,13 @@ jobs:
       - name: Copy wasm_exec.js
         run: cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" .
 
+      - name: Prepare artifact
+        run: mkdir -p _site && cp index.html ebitter.wasm wasm_exec.js _site/
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: |
-            index.html
-            ebitter.wasm
-            wasm_exec.js
+          path: _site
 
   deploy:
     needs: build
