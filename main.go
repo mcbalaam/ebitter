@@ -145,7 +145,7 @@ func main() {
 		DefaultDelay: 0.03,
 		Instant:      true,
 	}
-	textEngine.DisplayText(cornerStyle, "playable demo soon", nil, nil)
+	textEngine.DisplayText(cornerStyle, "github.com/mcbalaam/ebitter", nil, nil)
 
 	ebiten.SetWindowSize(640, 480)
 	ebiten.SetWindowTitle("Ebitter")
