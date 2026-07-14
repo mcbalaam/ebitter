@@ -20,18 +20,3 @@ func (s TextStyle) WithInstant(instant bool) TextStyle {
 	s.Instant = instant
 	return s
 }
-
-var (
-	StyleNarrative = TextStyle{
-		FontName:     "determination",
-		StartX:       60.0,
-		StartY:       732.0,
-		ScaleX:       0.5,
-		ScaleY:       0.5,
-		FontHeight:   24.0,
-		LineSpacing:  90.0,
-		DefaultDelay: 0.03,
-		Instant:      false,
-		CharSpacing:  2.0,
-	}
-)

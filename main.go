@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"image/color"
 	"log"
 	"math"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"github.com/mcbalaam/ebitter/pkg/embedfs"
 	"github.com/mcbalaam/ebitter/pkg/engine"
 	"github.com/mcbalaam/ebitter/pkg/engine/queues"
-	"github.com/mcbalaam/ebitter/pkg/render"
 	"github.com/mcbalaam/ebitter/pkg/sound"
 )
 
@@ -23,86 +23,15 @@ func init() {
 
 const version = "v0.98"
 
-type SplashText struct {
-	image     *ebiten.Image
-	elapsed   float64
-	centerX   float64
-	centerY   float64
-	baseScale float64
-}
-
-func NewSplashText(fontPath, text string, centerX, centerY, baseScale float64) (*SplashText, error) {
-	icon, err := render.NewAnimatedIconFromPath(fontPath, " ")
-	if err != nil {
-		return nil, err
-	}
-
-	spacing := 10.0
-	x := 0.0
-	maxH := 0
-
-	type glyphInfo struct {
-		img *ebiten.Image
-		x   float64
-	}
-	var glyphs []glyphInfo
-
-	for _, r := range text {
-		char := string(r)
-		if err := icon.SetIconState(char); err != nil {
-			continue
-		}
-		frame := icon.CurrentState.Frames[icon.CurrentState.CurrentFrame]
-		h := frame.Image.Bounds().Dy()
-		if h > maxH {
-			maxH = h
-		}
-		glyphs = append(glyphs, glyphInfo{img: frame.Image, x: x})
-		x += float64(frame.Image.Bounds().Dx()) + spacing
-	}
-
-	totalW := int(math.Ceil(x))
-	off := ebiten.NewImage(totalW, maxH)
-	for _, g := range glyphs {
-		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Translate(g.x, 0)
-		off.DrawImage(g.img, op)
-	}
-
-	return &SplashText{
-		image:     off,
-		centerX:   centerX,
-		centerY:   centerY,
-		baseScale: baseScale,
-	}, nil
-}
-
-func (s *SplashText) Update(dt time.Duration) {
-	s.elapsed += dt.Seconds()
-}
-
-func (s *SplashText) Draw(screen *ebiten.Image) {
-	pulse := 1.0 + math.Sin(s.elapsed*3)*0.1
-	scale := s.baseScale * pulse
-	tilt := math.Sin(s.elapsed*2) * 0.15
-
-	w := float64(s.image.Bounds().Dx())
-	h := float64(s.image.Bounds().Dy())
-
-	op := &ebiten.DrawImageOptions{}
-	op.Filter = ebiten.FilterNearest
-	op.GeoM.Translate(-w/2, -h/2)
-	op.GeoM.Scale(scale, scale)
-	op.GeoM.Rotate(tilt)
-	op.GeoM.Translate(s.centerX, s.centerY)
-	screen.DrawImage(s.image, op)
-}
-
 type Game struct {
-	sm *engine.SceneManager
+	sm     *engine.SceneManager
+	splash *engine.TextString
 }
 
 func (g *Game) Update() error {
+	if g.splash != nil && !g.splash.Visible {
+		g.splash = nil
+	}
 	g.sm.Update(time.Second / 60)
 	queues.DefaultDeleteQueue.Execute()
 	return nil
@@ -127,30 +56,42 @@ func main() {
 		player.PlayBackground("bgm", 1)
 	}
 
-	splash, err := NewSplashText("media/sprites/determination", "ebitter   "+version, 320, 240, 0.4)
-	if err != nil {
-		log.Fatalf("splash: %v", err)
-	}
-	queues.DefaultQueue.ScheduleAt(splash, queues.LayerOverlay)
-	queues.DefaultUpdateQueue.Schedule(splash)
-
-	textEngine := &engine.TextEngine{FontsLoaded: make(map[string]render.AnimatedIcon)}
-	cornerStyle := engine.TextStyle{
-		FontName:     "determination",
-		StartX:       10,
-		StartY:       430,
-		ScaleX:       0.3,
-		ScaleY:       0.3,
-		FontHeight:   24,
-		DefaultDelay: 0.03,
-		Instant:      true,
-	}
-	textEngine.DisplayText(cornerStyle, "github.com/mcbalaam/ebitter", nil, nil)
-
 	ebiten.SetWindowSize(640, 480)
 	ebiten.SetWindowTitle("Ebitter")
 	game := &Game{sm: &engine.SceneManager{}}
 	game.sm.Push(&engine.GameScene{})
+
+	splashStyle := engine.TextStyle{
+		FontName:    "determination",
+		ScaleX:      0.1,
+		ScaleY:      0.1,
+		FontHeight:  24,
+		CharSpacing: 8,
+		Color:       color.RGBA{255, 255, 255, 255},
+	}
+	var splashElapsed float64
+	splash := engine.NewTextString("ebitter  "+version, 320, 240, splashStyle)
+	splash.Centered = true
+	splash.UpdateFunc = func(ts *engine.TextString, dt time.Duration) {
+		splashElapsed += dt.Seconds()
+		pulse := 1.0 + math.Sin(splashElapsed*3)*0.1
+		ts.Style.ScaleX = 0.4 * pulse
+		ts.Style.ScaleY = 0.4 * pulse
+		ts.Rotation = math.Sin(splashElapsed*2) * 0.15
+	}
+	splash.Show()
+	game.splash = splash
+
+	cornerStyle := engine.TextStyle{
+		FontName:    "determination",
+		ScaleX:      0.3,
+		ScaleY:      0.3,
+		FontHeight:  24,
+		CharSpacing: 8,
+		Color:       color.RGBA{255, 255, 255, 255},
+	}
+	corner := engine.NewTextString("github.com/mcbalaam/ebitter", 10, 430, cornerStyle)
+	corner.Show()
 	if err := ebiten.RunGame(game); err != nil {
 		panic(err)
 	}
