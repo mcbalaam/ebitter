@@ -2,6 +2,8 @@
 
 A set of tools and upgrades for [ebitngine](https://ebitengine.org) to make writing games in Go easier!
 
+Demo here: https://mcblm.xyz/ebitter
+
 What I currently have in store:
 - scenes: proper `Scene` management and swapping;
 - `Camera`: move, tilt and zoom the camera around the scene;
