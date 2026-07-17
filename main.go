@@ -22,7 +22,7 @@ func init() {
 	embedfs.SetFS(mediaFS)
 }
 
-const version = "v0.98"
+const version = "v0.99"
 
 type Game struct {
 	sm        *scene.SceneManager
