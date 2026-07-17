@@ -46,7 +46,7 @@ func (g *Game) Update() error {
 func (g *Game) Draw(screen *ebiten.Image) {
 	g.sm.Draw(screen)
 	if g.pressIcon != nil && text.DefaultDialog.RevealedAll() {
-		g.pressIcon.Draw(screen, 380, 220, 1, 1, 0)
+		g.pressIcon.Draw(screen, 560, 410, 1, 1, 0)
 	}
 }
 
