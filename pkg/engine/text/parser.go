@@ -1,4 +1,4 @@
-package engine
+package text
 
 import (
 	"image/color"
@@ -108,11 +108,6 @@ func (p *TextParser) Parse() []DialogueCommand {
 			charWidth = 20
 		}
 
-		extraDelay := 0.0
-		if char == "." || char == "," {
-			extraDelay = curDelay * 10
-		}
-
 		cmds = append(cmds, DialogueCommand{
 			Type:      CmdChar,
 			Char:      char,
@@ -122,7 +117,7 @@ func (p *TextParser) Parse() []DialogueCommand {
 			TriggerAt: currentTime,
 		})
 
-		currentTime += curDelay + extraDelay
+		currentTime += curDelay
 		spacing := p.CharSpacing
 		if spacing == 0 {
 			spacing = 2

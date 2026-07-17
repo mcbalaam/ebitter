@@ -16,23 +16,26 @@ import (
 	"github.com/mcbalaam/ebitter/pkg/embedfs"
 )
 
-// AtlasMeta is a single atlas entity (png + aseprite-style JSON)
+// AtlasMeta is a single atlas entity (png + aseprite-style JSON).
 type AtlasMeta struct {
 	Name   string
 	States []assets.IconStateMeta
 }
 
+// AtlasManager caches cut icons to reuse them.
 type AtlasManager struct {
 	mu             sync.RWMutex
 	IconStateCache map[string]IconState
 	BasePath       string
 }
 
-var DefaultManager = &AtlasManager{
+// The main atlas manager instance.
+var MasterAtlasManager = &AtlasManager{
 	IconStateCache: map[string]IconState{},
 	BasePath:       "media/sprites",
 }
 
+// Parses an Aseprite format .json file, reads the .png spritesheet from the provided directory and cuts it. Caches the result.
 func (m *AtlasManager) CacheIconStates(path string) error {
 	entries, err := fs.ReadDir(embedfs.FS, path)
 	if err != nil {
@@ -99,6 +102,7 @@ func (m *AtlasManager) CacheIconStates(path string) error {
 	return nil
 }
 
+// Cuts the .png spritesheet into `Frame`s and combines them into `IconState`s.
 func (m *AtlasManager) CutAtlas(r io.Reader, meta AtlasMeta) ([]IconState, error) {
 	img, err := png.Decode(r)
 	if err != nil {
@@ -159,66 +163,15 @@ func (m *AtlasManager) CutAtlas(r io.Reader, meta AtlasMeta) ([]IconState, error
 	return states, nil
 }
 
-func (m *AtlasManager) LoadIconState(key string) (IconState, error) {
-	parts := strings.SplitN(key, "_", 2)
-	if len(parts) != 2 {
-		return IconState{}, fmt.Errorf("invalid key format: expected atlasname_statename")
-	}
-	atlasName := parts[0]
-
-	spritesDir := filepath.Join(m.BasePath, atlasName)
-	jsonPath := filepath.Join(spritesDir, atlasName+".json")
-	pngPath := filepath.Join(spritesDir, atlasName+".png")
-
-	if _, err := fs.Stat(embedfs.FS, jsonPath); err != nil {
-		return IconState{}, fmt.Errorf("json not found for atlas %q: %w", atlasName, err)
-	}
-	if _, err := fs.Stat(embedfs.FS, pngPath); err != nil {
-		return IconState{}, fmt.Errorf("png not found for atlas %q: %w", atlasName, err)
-	}
-
-	b, err := fs.ReadFile(embedfs.FS, jsonPath)
-	if err != nil {
-		return IconState{}, err
-	}
-	statesMeta, err := assets.ParseAsepriteJSON(b)
-	if err != nil {
-		return IconState{}, fmt.Errorf("assets json: %w", err)
-	}
-
-	f, err := embedfs.FS.Open(pngPath)
-	if err != nil {
-		return IconState{}, err
-	}
-	defer f.Close()
-
-	meta := AtlasMeta{Name: atlasName, States: statesMeta}
-	iconStates, err := m.CutAtlas(f, meta)
-	if err != nil {
-		return IconState{}, fmt.Errorf("cut atlas: %w", err)
-	}
-
-	m.mu.Lock()
-	for _, st := range iconStates {
-		m.IconStateCache[st.Name] = st
-	}
-	m.mu.Unlock()
-
-	st, err := m.GetIconState(key)
-	if err != nil {
-		return st, nil
-	}
-	return IconState{}, fmt.Errorf("state %q not found in atlas %q", parts[1], atlasName)
-}
-
-func (m *AtlasManager) GetIconState(key string) (IconState, error) {
+// GetIconState returns a cached icon state by compound key "iconName_iconState".
+func (m *AtlasManager) GetIconState(iconName, iconState string) (IconState, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
+	key := iconName + "_" + iconState
 	st, ok := m.IconStateCache[key]
 	if ok {
 		return st, nil
-	} else {
-		return m.LoadIconState(key)
 	}
+	return IconState{}, fmt.Errorf("icon state %q not found in cache", key)
 }

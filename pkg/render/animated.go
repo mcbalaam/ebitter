@@ -7,11 +7,13 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
+// A frame is an image and its duration.
 type Frame struct {
 	Image *ebiten.Image
 	Time  time.Duration
 }
 
+// An icon state is a set of frames and additional info on how to iterate through them.
 type IconState struct {
 	Name            string
 	CurrentFrame    int
@@ -23,23 +25,25 @@ type IconState struct {
 	Continuous      bool
 }
 
+// An animated icon is a set of icon states.
 type AnimatedIcon struct {
 	CurrentState *IconState
 	IconStates   map[string]*IconState
 }
 
+// Looks up the provided icon and state in the cache. Tries to cut and cache the icon if not already cached.
 func NewAnimatedIconFromPath(path string, stateKey string) (*AnimatedIcon, error) {
-	if err := DefaultManager.CacheIconStates(path); err != nil {
+	if err := MasterAtlasManager.CacheIconStates(path); err != nil {
 		return nil, fmt.Errorf("cache icon states: %w", err)
 	}
 
 	iconStates := make(map[string]*IconState)
-	DefaultManager.mu.RLock()
-	for k, v := range DefaultManager.IconStateCache {
+	MasterAtlasManager.mu.RLock()
+	for k, v := range MasterAtlasManager.IconStateCache {
 		st := v
 		iconStates[k] = &st
 	}
-	DefaultManager.mu.RUnlock()
+	MasterAtlasManager.mu.RUnlock()
 
 	initial, ok := iconStates[stateKey]
 	if !ok {
@@ -57,6 +61,7 @@ func NewAnimatedIconFromPath(path string, stateKey string) (*AnimatedIcon, error
 	}, nil
 }
 
+// Iterates through the frames.
 func (a *AnimatedIcon) Update(dt time.Duration) {
 	s := a.CurrentState
 	if s == nil || len(s.Frames) == 0 {
@@ -109,6 +114,7 @@ func (a *AnimatedIcon) Draw(screen *ebiten.Image, x, y, scaleX, scaleY, tilt flo
 	a.DrawWithColorScale(screen, x, y, scaleX, scaleY, tilt, 1, 1, 1, 1)
 }
 
+// Colors the icon when rendering.
 func (a *AnimatedIcon) DrawWithColorScale(screen *ebiten.Image, x, y, scaleX, scaleY, tilt, r, g, b, alpha float64) {
 	s := a.CurrentState
 	if s == nil || len(s.Frames) == 0 {
@@ -128,6 +134,7 @@ func (a *AnimatedIcon) DrawWithColorScale(screen *ebiten.Image, x, y, scaleX, sc
 	screen.DrawImage(frame.Image, op)
 }
 
+// Changes the icon's active state.
 func (a *AnimatedIcon) SetIconState(state string) error {
 	ns, ok := a.IconStates[state]
 	if !ok {

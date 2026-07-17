@@ -1,4 +1,4 @@
-package engine
+package scene
 
 import (
 	"image/color"
