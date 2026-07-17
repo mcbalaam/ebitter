@@ -1,16 +1,20 @@
 package engine
 
-import "math"
+import (
+	"math"
+
+	"github.com/mcbalaam/ebitter/pkg/engine/components"
+)
 
 type SpatialGrid struct {
 	cellSize float64
-	cells    map[[2]int][]*Entity
+	cells    map[[2]int][]*components.Entity
 }
 
 func NewSpatialGrid(cellSize float64) *SpatialGrid {
 	return &SpatialGrid{
 		cellSize: cellSize,
-		cells:    make(map[[2]int][]*Entity),
+		cells:    make(map[[2]int][]*components.Entity),
 	}
 }
 
@@ -24,7 +28,7 @@ func (g *SpatialGrid) cellKey(x, y float64) [2]int {
 	return [2]int{int(math.Floor(x / g.cellSize)), int(math.Floor(y / g.cellSize))}
 }
 
-func (g *SpatialGrid) Insert(e *Entity) {
+func (g *SpatialGrid) Insert(e *components.Entity) {
 	if e.Transform == nil {
 		return
 	}
@@ -32,14 +36,14 @@ func (g *SpatialGrid) Insert(e *Entity) {
 	g.cells[key] = append(g.cells[key], e)
 }
 
-func (g *SpatialGrid) Query(e *Entity) []*Entity {
+func (g *SpatialGrid) Query(e *components.Entity) []*components.Entity {
 	if e.Transform == nil {
 		return nil
 	}
 
 	key := g.cellKey(e.Transform.X, e.Transform.Y)
-	seen := make(map[*Entity]struct{})
-	var result []*Entity
+	seen := make(map[*components.Entity]struct{})
+	var result []*components.Entity
 
 	for dx := -1; dx <= 1; dx++ {
 		for dy := -1; dy <= 1; dy++ {

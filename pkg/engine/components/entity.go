@@ -1,4 +1,4 @@
-package engine
+package components
 
 import (
 	"runtime"
@@ -6,17 +6,16 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/mcbalaam/ebitter/pkg/engine/components"
 	"github.com/mcbalaam/ebitter/pkg/engine/queues"
 	"github.com/mcbalaam/ebitter/pkg/render"
 	"github.com/mcbalaam/ebitter/pkg/systems"
 )
 
 type Entity struct {
-	Transform *components.Transform
-	Velocity  *components.Velocity
-	Sprite    *components.Sprite
-	Collider  *components.Collider
+	Transform *Transform
+	Velocity  *Velocity
+	Sprite    *Sprite
+	Collider  *Collider
 
 	Layer int
 }
@@ -112,12 +111,12 @@ func (e *Entity) CheckCollisionsWithList(others []*Entity, signalName string) {
 	}
 }
 
-func DrawSpriteOnCollider(screen *ebiten.Image, icon *render.AnimatedIcon, transform *components.Transform, collider *components.Collider) {
+func DrawSpriteOnCollider(screen *ebiten.Image, icon *render.AnimatedIcon, transform *Transform, collider *Collider) {
 	if icon == nil || transform == nil || collider == nil {
 		return
 	}
-	offsetVec := components.Vec{X: collider.OffsetX, Y: collider.OffsetY}
-	transformedOffset := components.TransformPoint(offsetVec, transform.ScaleX, transform.ScaleY, transform.Rotation, 0, 0)
+	offsetVec := Vec{X: collider.OffsetX, Y: collider.OffsetY}
+	transformedOffset := TransformPoint(offsetVec, transform.ScaleX, transform.ScaleY, transform.Rotation, 0, 0)
 	centerX := transform.X - (collider.Width*transform.ScaleX)/2
 	centerY := transform.Y - (collider.Height*transform.ScaleY)/2
 	icon.Draw(screen, centerX+transformedOffset.X, centerY+transformedOffset.Y,
