@@ -62,7 +62,7 @@ func main() {
 	if err := player.RegisterNewSound("media/sound/rare.wav", "bgm"); err != nil {
 		log.Printf("bgm: %v", err)
 	} else {
-		player.PlayBackground("bgm", 1)
+		player.PlayBackground("bgm", 0.50)
 	}
 
 	player.RegisterNewSound("media/sound/snd_text.wav", "text")
@@ -122,7 +122,7 @@ func main() {
 		"Heya.$p600 $ce5d20dmcbalaam$cffffff speaking.$n$p600The engine is in beta,$p200 and$nI don't have a cool demo yet.$e",
 		dialogStyle, "text")
 	text.DefaultDialog.Show(
-		"Stay tuned!$p600 Check out the $n$ce5d20ddocumentation$cffffff on pkg.go.dev in$nthe meanwhile.$e",
+		"Stay tuned!$p600 Check out the $n$ce5d20ddocumentation$cffffff on pkg.go.dev in$nthe meantime.$e",
 		dialogStyle, "text")
 	if err := ebiten.RunGame(game); err != nil {
 		panic(err)
