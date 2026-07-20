@@ -1,3 +1,4 @@
+// Package render provides tools for managing and rendering animated icons from spritesheets.
 package render
 
 import (

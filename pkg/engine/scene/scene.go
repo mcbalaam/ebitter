@@ -1,3 +1,4 @@
+// Package scene provides minimal scene and scene manager implementation
 package scene
 
 import (

@@ -1,3 +1,4 @@
+// Package assets provides an asset cutter and a font renderer
 package assets
 
 import (
@@ -46,6 +47,7 @@ type aseJSON struct {
 	Meta   aseMetaRaw             `json:"meta"`
 }
 
+// Reads and parses the .json data
 func ParseAsepriteJSON(data []byte) ([]IconStateMeta, error) {
 	var a aseJSON
 	if err := json.Unmarshal(data, &a); err != nil {
