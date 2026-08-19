@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/golang/freetype"
 	"github.com/golang/freetype/truetype"
@@ -47,6 +48,7 @@ type FrameData struct {
 		H int `json:"h"`
 	} `json:"sourceSize"`
 	Duration int `json:"duration"`
+	Advance  int `json:"advance"`
 }
 
 type MetaData struct {
@@ -171,24 +173,23 @@ func processTTFFont(fontPath, fontName, outputDir string) error {
 	ranges := []struct{ start, end int }{
 		{32, 126},        // ASCII
 		{0x0100, 0x017F}, // latin extended
-		{0x0400, 0x044F}, // cyrrylic
+		{0x0400, 0x044F}, // cyrillic
 	}
 
 	for _, r := range ranges {
 		for i := r.start; i <= r.end; i++ {
-			img, err := renderGlyph(ttfFont, rune(i), fontSize, TargetDPI, fontHeight, baseline)
+			img, advance, err := renderGlyph(ttfFont, rune(i), fontSize, TargetDPI, fontHeight, baseline)
 			if err != nil || img == nil {
 				continue
 			}
 
-			if img.Bounds().Dx() > 0 {
-				glyphFrames = append(glyphFrames, GlyphFrame{
-					Index:  i,
-					Width:  img.Bounds().Dx(),
-					Height: fontHeight,
-					Image:  img,
-				})
-			}
+			glyphFrames = append(glyphFrames, GlyphFrame{
+				Index:   i,
+				Width:   img.Bounds().Dx(),
+				Height:  fontHeight,
+				Advance: advance,
+				Image:   img,
+			})
 		}
 	}
 
@@ -229,7 +230,7 @@ func processTTFFont(fontPath, fontName, outputDir string) error {
 	return nil
 }
 
-func renderGlyph(ttfFont *truetype.Font, ch rune, fontSize float64, dpi float64, fontHeight int, ascent int) (image.Image, error) {
+func renderGlyph(ttfFont *truetype.Font, ch rune, fontSize float64, dpi float64, fontHeight int, ascent int) (image.Image, int, error) {
 	canvasWidth := int(fontSize * 4)
 	img := image.NewRGBA(image.Rect(0, 0, canvasWidth, fontHeight))
 	draw.Draw(img, img.Bounds(), image.NewUniform(color.RGBA{0, 0, 0, 0}), image.Point{}, draw.Src)
@@ -245,9 +246,13 @@ func renderGlyph(ttfFont *truetype.Font, ch rune, fontSize float64, dpi float64,
 	startX := 10
 	pt := fixed.Point26_6{X: fixed.Int26_6(startX * 64), Y: fixed.Int26_6(ascent * 64)}
 
-	_, err := c.DrawString(string(ch), pt)
+	pen, err := c.DrawString(string(ch), pt)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
+	}
+	advance := int((pen.X - pt.X) / 64)
+	if advance < 0 {
+		advance = 0
 	}
 
 	bounds := img.Bounds()
@@ -278,15 +283,18 @@ func renderGlyph(ttfFont *truetype.Font, ch rune, fontSize float64, dpi float64,
 	}
 
 	if minX == canvasWidth {
+		if !unicode.IsSpace(ch) {
+			return nil, 0, nil
+		}
 		emptyImg := image.NewRGBA(image.Rect(0, 0, 1, fontHeight))
-		return emptyImg, nil
+		return emptyImg, advance, nil
 	}
 
 	croppedBounds := image.Rect(minX, 0, maxX+1, fontHeight)
 	croppedImg := image.NewRGBA(image.Rect(0, 0, croppedBounds.Dx(), croppedBounds.Dy()))
 	draw.Draw(croppedImg, croppedImg.Bounds(), img, croppedBounds.Min, draw.Src)
 
-	return croppedImg, nil
+	return croppedImg, advance, nil
 }
 
 func arrangeGlyphs(glyphFrames []GlyphFrame) (image.Image, []GlyphFrame) {
@@ -329,12 +337,13 @@ func arrangeGlyphs(glyphFrames []GlyphFrame) (image.Image, []GlyphFrame) {
 			gf.Image, image.Point{}, draw.Over)
 
 		frames[i] = GlyphFrame{
-			Index:  gf.Index,
-			X:      drawX,
-			Y:      drawY,
-			Width:  gf.Width,
-			Height: gf.Height,
-			Image:  gf.Image,
+			Index:   gf.Index,
+			X:       drawX,
+			Y:       drawY,
+			Width:   gf.Width,
+			Height:  gf.Height,
+			Advance: gf.Advance,
+			Image:   gf.Image,
 		}
 	}
 
@@ -353,6 +362,7 @@ func generateConfig(fontName string, frames []GlyphFrame) SpriteSheet {
 			Rotated:  false,
 			Trimmed:  false,
 			Duration: 200,
+			Advance:  frame.Advance,
 		}
 
 		fd.Frame.X = frame.X

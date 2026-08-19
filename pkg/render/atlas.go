@@ -27,17 +27,26 @@ type AtlasMeta struct {
 type AtlasManager struct {
 	mu             sync.RWMutex
 	IconStateCache map[string]IconState
+	processed      map[string]bool
 	BasePath       string
 }
 
 // The main atlas manager instance.
 var MasterAtlasManager = &AtlasManager{
 	IconStateCache: map[string]IconState{},
+	processed:      map[string]bool{},
 	BasePath:       "media/sprites",
 }
 
 // Parses an Aseprite format .json file, reads the .png spritesheet from the provided directory and cuts it. Caches the result.
 func (m *AtlasManager) CacheIconStates(path string) error {
+	m.mu.RLock()
+	done := m.processed[path]
+	m.mu.RUnlock()
+	if done {
+		return nil
+	}
+
 	entries, err := fs.ReadDir(embedfs.FS, path)
 	if err != nil {
 		return err
@@ -65,39 +74,32 @@ func (m *AtlasManager) CacheIconStates(path string) error {
 
 		base := strings.TrimSuffix(name, filepath.Ext(name))
 		pngPath := filepath.Join(path, base+".png")
-		if _, err := fs.Stat(embedfs.FS, pngPath); err == nil {
-			f, err := embedfs.FS.Open(pngPath)
-			if err != nil {
-				return fmt.Errorf("open png %s: %w", pngPath, err)
-			}
-
-			func() {
-				defer f.Close()
-
-				meta := AtlasMeta{
-					Name:   base,
-					States: statesMeta,
-				}
-
-				iconStates, err := m.CutAtlas(f, meta)
-				if err != nil {
-					err = fmt.Errorf("cut atlas %s: %w", pngPath, err)
-					panic(err)
-				}
-
-				m.mu.Lock()
-				for _, st := range iconStates {
-					m.IconStateCache[st.Name] = st
-				}
-				m.mu.Unlock()
-			}()
-			if r := recover(); r != nil {
-				if errVal, ok := r.(error); ok {
-					return errVal
-				}
-				return fmt.Errorf("unexpected error: %v", r)
-			}
+		if _, err := fs.Stat(embedfs.FS, pngPath); err != nil {
+			continue
 		}
+
+		f, err := embedfs.FS.Open(pngPath)
+		if err != nil {
+			return fmt.Errorf("open png %s: %w", pngPath, err)
+		}
+
+		meta := AtlasMeta{
+			Name:   base,
+			States: statesMeta,
+		}
+
+		iconStates, err := m.CutAtlas(f, meta)
+		f.Close()
+		if err != nil {
+			return fmt.Errorf("cut atlas %s: %w", pngPath, err)
+		}
+
+		m.mu.Lock()
+		for _, st := range iconStates {
+			m.IconStateCache[base+"/"+st.Name] = st
+		}
+		m.processed[path] = true
+		m.mu.Unlock()
 	}
 
 	return nil
@@ -131,8 +133,9 @@ func (m *AtlasManager) CutAtlas(r io.Reader, meta AtlasMeta) ([]IconState, error
 
 			eimg := *ebiten.NewImageFromImage(sub)
 			frm := Frame{
-				Image: &eimg,
-				Time:  time.Duration(fm.DurationMS) * time.Millisecond,
+				Image:   &eimg,
+				Time:    time.Duration(fm.DurationMS) * time.Millisecond,
+				Advance: float64(fm.Advance),
 			}
 			frames = append(frames, frm)
 		}
@@ -164,12 +167,12 @@ func (m *AtlasManager) CutAtlas(r io.Reader, meta AtlasMeta) ([]IconState, error
 	return states, nil
 }
 
-// GetIconState returns a cached icon state by compound key "iconName_iconState".
+// GetIconState returns a cached icon state by compound key "iconName/iconState".
 func (m *AtlasManager) GetIconState(iconName, iconState string) (IconState, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	key := iconName + "_" + iconState
+	key := iconName + "/" + iconState
 	st, ok := m.IconStateCache[key]
 	if ok {
 		return st, nil

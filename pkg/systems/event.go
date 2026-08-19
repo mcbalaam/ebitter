@@ -5,16 +5,16 @@ import "sync"
 type SignalInteractor interface{}
 
 type Signal struct {
-	Name    string
-	Emitent *SignalInteractor
-	Data    interface{}
+	Name   string
+	Source SignalInteractor
+	Data   interface{}
 }
 
 type SignalHandler func(Signal)
 
 type SignalSubscription struct {
 	Name      string
-	Recepient *SignalInteractor
+	Recipient SignalInteractor
 	Handler   SignalHandler
 }
 
@@ -25,11 +25,11 @@ type SignalBus struct {
 
 var MasterSignalBus = SignalBus{}
 
-func (b *SignalBus) Subscribe(name string, recepient SignalInteractor, handler SignalHandler) {
+func (b *SignalBus) Subscribe(name string, recipient SignalInteractor, handler SignalHandler) {
 	b.mu.Lock()
 	b.Subscriptions = append(b.Subscriptions, SignalSubscription{
 		Name:      name,
-		Recepient: &recepient,
+		Recipient: recipient,
 		Handler:   handler,
 	})
 	b.mu.Unlock()
@@ -37,8 +37,8 @@ func (b *SignalBus) Subscribe(name string, recepient SignalInteractor, handler S
 
 func (b *SignalBus) Emit(name string, source SignalInteractor, data ...interface{}) {
 	signal := Signal{
-		Name:    name,
-		Emitent: &source,
+		Name:   name,
+		Source: source,
 	}
 
 	if len(data) > 0 {
@@ -46,10 +46,12 @@ func (b *SignalBus) Emit(name string, source SignalInteractor, data ...interface
 	}
 
 	b.mu.RLock()
-	for _, sub := range b.Subscriptions {
+	subs := append([]SignalSubscription{}, b.Subscriptions...)
+	b.mu.RUnlock()
+
+	for _, sub := range subs {
 		if sub.Name == name {
 			sub.Handler(signal)
 		}
 	}
-	b.mu.RUnlock()
 }

@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"sync"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2/audio"
 	"github.com/hajimehoshi/ebiten/v2/audio/wav"
@@ -20,6 +21,9 @@ type SoundPlayer struct {
 }
 
 func NewSoundPlayer(sampleRate int) (*SoundPlayer, error) {
+	if sampleRate <= 0 {
+		return nil, fmt.Errorf("invalid sample rate: %d", sampleRate)
+	}
 	return &SoundPlayer{
 		context: audio.NewContext(sampleRate),
 		buffers: make(map[string][]byte),
@@ -69,9 +73,15 @@ func (s *SoundPlayer) PlaySound(name string, volume float64) error {
 		return fmt.Errorf("no sound: %s", name)
 	}
 
-	player := audio.NewPlayerFromBytes(s.context, data)
+	player := s.context.NewPlayerFromBytes(data)
 	player.SetVolume(math.Max(0, math.Min(1, volume)))
 	player.Play()
+	go func() {
+		for player.IsPlaying() {
+			time.Sleep(50 * time.Millisecond)
+		}
+		player.Close()
+	}()
 	return nil
 }
 
@@ -81,16 +91,12 @@ func (s *SoundPlayer) PlayVariable(name string, volume float64, _ float64) error
 
 func (s *SoundPlayer) PlayBackground(name string, volume float64) error {
 	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	data, ok := s.buffers[name]
 	if !ok {
-		s.mu.Unlock()
 		return fmt.Errorf("no sound: %s", name)
 	}
-	if s.bgm != nil {
-		s.bgm.Close()
-		s.bgm = nil
-	}
-	s.mu.Unlock()
 
 	reader := bytes.NewReader(data)
 	loop := audio.NewInfiniteLoop(reader, int64(len(data)))
@@ -101,8 +107,9 @@ func (s *SoundPlayer) PlayBackground(name string, volume float64) error {
 	player.SetVolume(math.Max(0, math.Min(1, volume)))
 	player.Play()
 
-	s.mu.Lock()
+	if s.bgm != nil {
+		s.bgm.Close()
+	}
 	s.bgm = player
-	s.mu.Unlock()
 	return nil
 }

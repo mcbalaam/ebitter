@@ -20,7 +20,7 @@ type Entity struct {
 	Layer int
 }
 
-func (e *Entity) IsParallelSafe() bool { return true }
+func (e *Entity) IsParallelSafe() bool { return false }
 
 func (e *Entity) Update(dt time.Duration) {
 	if e.Velocity != nil && e.Transform != nil {

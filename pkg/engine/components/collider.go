@@ -39,8 +39,9 @@ func (c *Collider) UpdateWorldVerts(t *Transform) {
 	if c == nil || len(c.LocalVerts) == 0 {
 		return
 	}
+	off := TransformPoint(Vec{X: c.OffsetX, Y: c.OffsetY}, t.ScaleX, t.ScaleY, t.Rotation, 0, 0)
 	for i, local := range c.LocalVerts {
-		c.WorldVerts[i] = TransformPoint(local, t.ScaleX, t.ScaleY, t.Rotation, t.X, t.Y)
+		c.WorldVerts[i] = TransformPoint(local, t.ScaleX, t.ScaleY, t.Rotation, t.X+off.X, t.Y+off.Y)
 	}
 }
 

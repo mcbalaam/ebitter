@@ -2,6 +2,8 @@ package render
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -9,8 +11,9 @@ import (
 
 // A frame is an image and its duration.
 type Frame struct {
-	Image *ebiten.Image
-	Time  time.Duration
+	Image   *ebiten.Image
+	Time    time.Duration
+	Advance float64
 }
 
 // An icon state is a set of frames and additional info on how to iterate through them.
@@ -37,11 +40,16 @@ func NewAnimatedIconFromPath(path string, stateKey string) (*AnimatedIcon, error
 		return nil, fmt.Errorf("cache icon states: %w", err)
 	}
 
+	prefix := filepath.Base(path)
 	iconStates := make(map[string]*IconState)
 	MasterAtlasManager.mu.RLock()
 	for k, v := range MasterAtlasManager.IconStateCache {
+		name, state, ok := strings.Cut(k, "/")
+		if !ok || name != prefix {
+			continue
+		}
 		st := v
-		iconStates[k] = &st
+		iconStates[state] = &st
 	}
 	MasterAtlasManager.mu.RUnlock()
 
@@ -72,8 +80,16 @@ func (a *AnimatedIcon) Update(dt time.Duration) {
 	if s.CurrentFrame < 0 {
 		s.CurrentFrame = 0
 	}
-	for s.Frames[s.CurrentFrame].Time > 0 && s.elapsed >= s.Frames[s.CurrentFrame].Time {
-		s.elapsed -= s.Frames[s.CurrentFrame].Time
+	for i := 0; i < len(s.Frames); i++ {
+		frame := &s.Frames[s.CurrentFrame]
+		if frame.Time > 0 && s.elapsed < frame.Time {
+			break
+		}
+		if frame.Time > 0 {
+			s.elapsed -= frame.Time
+		} else {
+			s.elapsed = 0
+		}
 		switch s.Mode {
 		case AnimationModeLoop:
 			s.CurrentFrame++
@@ -85,6 +101,7 @@ func (a *AnimatedIcon) Update(dt time.Duration) {
 				s.CurrentFrame++
 			} else {
 				s.elapsed = 0
+				s.CurrentFrameRef = &s.Frames[s.CurrentFrame]
 				return
 			}
 		case AnimationModePingPong:

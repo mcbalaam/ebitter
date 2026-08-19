@@ -28,7 +28,9 @@ func (g *Glyph) Draw(s *ebiten.Image) {
 	op.GeoM.Rotate(g.Tilt)
 	op.GeoM.Translate(math.Round(g.PosX), math.Round(g.PosY))
 
-	op.ColorScale.ScaleWithColor(g.Color)
+	if g.Color != nil {
+		op.ColorScale.ScaleWithColor(g.Color)
+	}
 	s.DrawImage(g.Image, op)
 }
 
@@ -66,6 +68,7 @@ func NewTextDisplay(text string, style TextStyle) *TextDisplay {
 		FontHeight:   style.FontHeight,
 		LineSpacing:  style.LineSpacing,
 		Delay:        style.DefaultDelay,
+		Font:         font,
 		CharWidth:    make(map[string]int),
 		CharSpacing:  style.CharSpacing,
 		DefaultColor: style.Color,
@@ -101,6 +104,7 @@ func (t *TextDisplay) revealAll() {
 			t.revealChar(cmd)
 		}
 	}
+	t.revealedAll = true
 	t.IsComplete = true
 }
 
@@ -200,6 +204,7 @@ func (t *TextDisplay) Update(deltaTime time.Duration) {
 		if cmd.Type == CmdEndNoWait {
 			t.CmdIndex++
 			t.Displayed = t.Displayed[:0]
+			t.revealedAll = true
 			t.IsComplete = true
 			if t.OnComplete != nil {
 				t.OnComplete()
@@ -227,9 +232,11 @@ func (t *TextDisplay) Draw(s *ebiten.Image) {
 }
 
 func (t *TextDisplay) RevealedAll() bool { return t.revealedAll }
-func (t *TextDisplay) Waiting() bool { return t.waiting }
+func (t *TextDisplay) Waiting() bool     { return t.waiting }
 
 func (t *TextDisplay) Destroy() {
+	queues.DefaultQueue.Unschedule(t)
+	queues.DefaultUpdateQueue.Unschedule(t)
 	t.Displayed = nil
 	t.Commands = nil
 }

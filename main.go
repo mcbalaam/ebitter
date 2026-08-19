@@ -26,14 +26,10 @@ const version = "v0.99"
 
 type Game struct {
 	sm        *scene.SceneManager
-	splash    *text.TextString
 	pressIcon *render.AnimatedIcon
 }
 
 func (g *Game) Update() error {
-	if g.splash != nil && !g.splash.Visible {
-		g.splash = nil
-	}
 	g.sm.Update(time.Second / 60)
 	text.DefaultDialog.Update(time.Second / 60)
 	if g.pressIcon != nil {
@@ -61,11 +57,13 @@ func main() {
 	}
 	if err := player.RegisterNewSound("media/sound/rare.wav", "bgm"); err != nil {
 		log.Printf("bgm: %v", err)
-	} else {
-		player.PlayBackground("bgm", 0.50)
+	} else if err := player.PlayBackground("bgm", 0.50); err != nil {
+		log.Printf("bgm play: %v", err)
 	}
 
-	player.RegisterNewSound("media/sound/snd_text.wav", "text")
+	if err := player.RegisterNewSound("media/sound/snd_text.wav", "text"); err != nil {
+		log.Printf("text sound: %v", err)
+	}
 	text.DefaultDialog.SoundPlayer = player
 
 	ebiten.SetWindowSize(640, 480)
@@ -75,7 +73,7 @@ func main() {
 		log.Printf("press_z: %v", err)
 	}
 	game := &Game{sm: &scene.SceneManager{}, pressIcon: pi}
-	game.sm.Push(&scene.GameScene{})
+	game.sm.Push(scene.NewGameScene())
 
 	splashStyle := text.TextStyle{
 		FontName:    "determination",
@@ -95,7 +93,6 @@ func main() {
 		ts.Rotation = math.Sin(splashElapsed*2) * 0.15
 	}
 	splash.Show()
-	game.splash = splash
 
 	cornerStyle := text.TextStyle{
 		FontName:    "determination",
@@ -113,10 +110,10 @@ func main() {
 		ScaleY:       0.3,
 		StartX:       20,
 		StartY:       0,
-		FontHeight:   24,
+		FontHeight:   32,
 		LineSpacing:  90,
 		DefaultDelay: 0.08,
-		CharSpacing:  2,
+		CharSpacing:  8,
 	}
 	text.DefaultDialog.Show(
 		"Heya.$p600 $ce5d20dmcbalaam$cffffff speaking.$n$p600The engine is in beta,$p200 and$nI don't have a cool demo yet.$e",

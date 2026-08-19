@@ -63,10 +63,12 @@ func (ts *TextString) Hide() {
 
 func (ts *TextString) Destroy() {
 	ts.mu.Lock()
-	defer ts.mu.Unlock()
 	ts.destroyed = true
 	ts.Visible = false
 	ts.font = nil
+	ts.mu.Unlock()
+	queues.DefaultQueue.Unschedule(ts)
+	queues.DefaultUpdateQueue.Unschedule(ts)
 }
 
 func (ts *TextString) SetText(text string) {
@@ -105,6 +107,23 @@ func (ts *TextString) ensureFont() {
 
 	defaultCharWidth := ts.font.CurrentState.CurrentFrameRef.Image.Bounds().Dx()
 
+	glyphAdvance := func(font *render.AnimatedIcon, char string, fallback int) int {
+		if err := font.SetIconState(char); err != nil {
+			return fallback
+		}
+		fr := font.CurrentState.CurrentFrameRef
+		if fr == nil {
+			return fallback
+		}
+		if fr.Advance > 0 {
+			return int(fr.Advance)
+		}
+		if w := fr.Image.Bounds().Dx(); w > 0 {
+			return w
+		}
+		return fallback
+	}
+
 	lines := strings.Split(ts.Text, "\n")
 	cx := 0.0
 	cy := 0.0
@@ -130,7 +149,7 @@ func (ts *TextString) ensureFont() {
 				cx += float64(defaultCharWidth) + charSpacing
 				continue
 			}
-			w := float64(frame.Image.Bounds().Dx())
+			w := float64(glyphAdvance(ts.font, char, defaultCharWidth))
 			h := frame.Image.Bounds().Dy()
 			if h > maxH {
 				maxH = h
@@ -151,6 +170,11 @@ func (ts *TextString) ensureFont() {
 
 	ts.totalWidth = maxLineW
 	ts.totalHeight = cy + float64(maxH)
+
+	if int(maxLineW) <= 0 || int(ts.totalHeight) <= 0 {
+		ts.loaded = true
+		return
+	}
 
 	if ts.image == nil || ts.image.Bounds().Dx() < int(maxLineW) || ts.image.Bounds().Dy() < int(ts.totalHeight) {
 		ts.image = ebiten.NewImage(int(maxLineW), int(ts.totalHeight))
@@ -173,12 +197,14 @@ func (ts *TextString) ensureFont() {
 
 func (ts *TextString) Update(deltaTime time.Duration) {
 	ts.mu.Lock()
-	defer ts.mu.Unlock()
 	if ts.destroyed || !ts.Visible {
+		ts.mu.Unlock()
 		return
 	}
-	if ts.UpdateFunc != nil {
-		ts.UpdateFunc(ts, deltaTime)
+	fn := ts.UpdateFunc
+	ts.mu.Unlock()
+	if fn != nil {
+		fn(ts, deltaTime)
 	}
 }
 

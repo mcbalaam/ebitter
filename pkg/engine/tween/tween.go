@@ -25,9 +25,9 @@ type Tween[T any] struct {
 	setter func(T)
 	lerp   func(from, to T, t float64) T
 
-	duration time.Duration
-	elapsed  time.Duration
-	delay    time.Duration
+	duration     time.Duration
+	elapsed      time.Duration
+	delay        time.Duration
 	delayElapsed time.Duration
 
 	easing  EasingFunc

@@ -70,19 +70,7 @@ func (d *DrawQueue) Execute(s *ebiten.Image) {
 }
 
 func (d *DrawQueue) sort() {
-	buckets := make(map[int][]drawEntry)
-	for _, e := range d.entries {
-		buckets[e.layer] = append(buckets[e.layer], e)
-	}
-
-	layers := make([]int, 0, len(buckets))
-	for l := range buckets {
-		layers = append(layers, l)
-	}
-	sort.Ints(layers)
-
-	d.entries = d.entries[:0]
-	for _, l := range layers {
-		d.entries = append(d.entries, buckets[l]...)
-	}
+	sort.SliceStable(d.entries, func(i, j int) bool {
+		return d.entries[i].layer < d.entries[j].layer
+	})
 }

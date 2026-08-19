@@ -3,6 +3,8 @@ package text
 import (
 	"image/color"
 	"strconv"
+
+	"github.com/mcbalaam/ebitter/pkg/render"
 )
 
 type CommandType int
@@ -31,6 +33,7 @@ type TextParser struct {
 	FontHeight   float64
 	LineSpacing  float64
 	Delay        float64
+	Font         *render.AnimatedIcon
 	CharWidth    map[string]int
 	CharSpacing  float64
 	DefaultColor color.Color
@@ -69,10 +72,12 @@ func (p *TextParser) Parse() []DialogueCommand {
 				if i+6 <= len(runes) {
 					hexStr := string(runes[i : i+6])
 					i += 6
-					r, _ := strconv.ParseUint(hexStr[0:2], 16, 8)
-					g, _ := strconv.ParseUint(hexStr[2:4], 16, 8)
-					b, _ := strconv.ParseUint(hexStr[4:6], 16, 8)
-					curColor = color.RGBA{R: uint8(r), G: uint8(g), B: uint8(b), A: 255}
+					r, errR := strconv.ParseUint(hexStr[0:2], 16, 8)
+					g, errG := strconv.ParseUint(hexStr[2:4], 16, 8)
+					b, errB := strconv.ParseUint(hexStr[4:6], 16, 8)
+					if errR == nil && errG == nil && errB == nil {
+						curColor = color.RGBA{R: uint8(r), G: uint8(g), B: uint8(b), A: 255}
+					}
 				}
 
 			case 's':
@@ -104,6 +109,16 @@ func (p *TextParser) Parse() []DialogueCommand {
 
 		char := string(runes[i])
 		charWidth := p.CharWidth[char]
+		if p.Font != nil {
+			if err := p.Font.SetIconState(char); err == nil && p.Font.CurrentState.CurrentFrameRef != nil {
+				fr := p.Font.CurrentState.CurrentFrameRef
+				if fr.Advance > 0 {
+					charWidth = int(fr.Advance)
+				} else if w := fr.Image.Bounds().Dx(); w > 0 {
+					charWidth = w
+				}
+			}
+		}
 		if charWidth == 0 {
 			charWidth = 20
 		}
@@ -122,7 +137,7 @@ func (p *TextParser) Parse() []DialogueCommand {
 		if spacing == 0 {
 			spacing = 2
 		}
-		curX += ((float64(charWidth) + spacing) * 3) * p.ScaleX
+		curX += (float64(charWidth) + spacing) * p.ScaleX
 		i++
 	}
 

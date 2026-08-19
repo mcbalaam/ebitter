@@ -73,6 +73,7 @@ func (dm *DialogManager) Update(dt time.Duration) {
 	if dm.AdvanceChecker != nil && dm.AdvanceChecker() {
 		if dm.active.RevealedAll() {
 			if dm.active.Advance() {
+				dm.active.Destroy()
 				dm.active = nil
 				dm.next()
 				return
@@ -84,6 +85,7 @@ func (dm *DialogManager) Update(dt time.Duration) {
 
 	if dm.active != nil && dm.active.RevealedAll() && dm.AdvanceChecker != nil && dm.AdvanceChecker() {
 		if dm.active.Advance() {
+			dm.active.Destroy()
 			dm.active = nil
 			dm.next()
 		}
@@ -91,8 +93,12 @@ func (dm *DialogManager) Update(dt time.Duration) {
 }
 
 func (dm *DialogManager) start(text string, style TextStyle, charSound string) {
-	dm.active = NewTextDisplay(text, style)
-	dm.active.CharSound = charSound
+	td := NewTextDisplay(text, style)
+	if td == nil {
+		return
+	}
+	td.CharSound = charSound
+	dm.active = td
 }
 
 func (dm *DialogManager) next() {

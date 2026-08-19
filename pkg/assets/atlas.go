@@ -13,6 +13,7 @@ import (
 type FrameMeta struct {
 	Rect       image.Rectangle
 	DurationMS int
+	Advance    int
 }
 type IconStateMeta struct {
 	Name   string
@@ -29,6 +30,7 @@ type aseFrameRaw struct {
 		H int `json:"h"`
 	} `json:"frame"`
 	Duration int `json:"duration"`
+	Advance  int `json:"advance"`
 }
 
 type aseTagRaw struct {
@@ -112,6 +114,7 @@ func ParseAsepriteJSON(data []byte) ([]IconStateMeta, error) {
 			fs = append(fs, FrameMeta{
 				Rect:       r,
 				DurationMS: f.Duration,
+				Advance:    f.Advance,
 			})
 		}
 		states = append(states, IconStateMeta{
