@@ -2,7 +2,14 @@
 
 A set of tools and upgrades for [ebitngine](https://ebitengine.org) to make writing games in Go easier!
 
-Demo here: https://mcblm.xyz/ebitter
+All of the tooling required to work with Ebitter is free and opensource.
+
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/d39a8179-87c3-48bb-abea-a67b629caccd" />
+<br>
+<sub>A demo scene running in Ebitter showcasing tilemap loading: (Aseprite)[https://github.com/aseprite/aseprite] and [Tiled](https://github.com/mapeditor/tiled/) are open.</sub>
+<br>
+<br>
+Live demo here: https://mcblm.xyz/ebitter
 
 What I currently have in store:
 - scenes: proper `Scene` management and swapping;
