@@ -26,3 +26,8 @@ func (in *Input) JustPressed(key ebiten.Key) bool {
 	_, ok := in.justPressed[key]
 	return ok
 }
+
+// IsPressed reports whether the key is currently held down.
+func (in *Input) IsPressed(key ebiten.Key) bool {
+	return ebiten.IsKeyPressed(key)
+}

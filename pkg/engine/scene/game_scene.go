@@ -14,7 +14,7 @@ type GameScene struct {
 
 func NewGameScene() *GameScene {
 	return &GameScene{
-		BgColor: color.RGBA{0x00, 0x00, 0x00, 0xff},
+		BgColor: color.Black,
 	}
 }
 
