@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/mcbalaam/ebitter/pkg/engine/queues"
+	"github.com/mcbalaam/ebitter/queues"
 )
 
 type GameScene struct {

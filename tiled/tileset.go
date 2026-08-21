@@ -13,7 +13,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	gotiled "github.com/lafriks/go-tiled"
-	"github.com/mcbalaam/ebitter/pkg/embedfs"
+	"github.com/mcbalaam/ebitter/assetfs"
 )
 
 // TilesetAsset is a loaded TSX tileset together with its decoded texture.
@@ -88,7 +88,7 @@ func (c *TilesetCache) Asset(ts *gotiled.Tileset) (*TilesetAsset, error) {
 		return a, nil
 	}
 
-	f, err := embedfs.FS.Open(src)
+	f, err := assetfs.FS.Open(src)
 	if err != nil {
 		return nil, fmt.Errorf("tiled: open tileset image %s: %w", src, err)
 	}

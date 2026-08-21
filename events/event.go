@@ -1,4 +1,6 @@
-package systems
+// Package events provides a signal bus for subscribing to and emitting
+// game events (collisions, interactions, etc.).
+package events
 
 import "sync"
 

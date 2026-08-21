@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/mcbalaam/ebitter/pkg/engine/queues"
-	"github.com/mcbalaam/ebitter/pkg/render"
+	"github.com/mcbalaam/ebitter/queues"
+	"github.com/mcbalaam/ebitter/render"
 )
 
 var textStringFontCache sync.Map

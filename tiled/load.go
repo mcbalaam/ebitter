@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 
 	gotiled "github.com/lafriks/go-tiled"
-	"github.com/mcbalaam/ebitter/pkg/embedfs"
+	"github.com/mcbalaam/ebitter/assetfs"
 )
 
 // LoadMap parses a Tiled .tmx file from the embedded filesystem and builds a
@@ -40,7 +40,7 @@ func LoadMapSpecScaled(path string, cache *TilesetCache, scale float64) (*GameMa
 	if scale <= 0 {
 		scale = 1
 	}
-	spec, err := gotiled.LoadFile(filepath.ToSlash(path), gotiled.WithFileSystem(embedfs.FS))
+	spec, err := gotiled.LoadFile(filepath.ToSlash(path), gotiled.WithFileSystem(assetfs.FS))
 	if err != nil {
 		return nil, fmt.Errorf("tiled: load map %s: %w", path, err)
 	}

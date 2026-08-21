@@ -4,7 +4,7 @@ import (
 	"image/color"
 	"strconv"
 
-	"github.com/mcbalaam/ebitter/pkg/render"
+	"github.com/mcbalaam/ebitter/render"
 )
 
 type CommandType int

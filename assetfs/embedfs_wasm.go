@@ -1,3 +1,3 @@
 //go:build wasm
 
-package embedfs
+package assetfs

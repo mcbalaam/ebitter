@@ -5,18 +5,18 @@ import (
 	"testing"
 
 	gotiled "github.com/lafriks/go-tiled"
-	"github.com/mcbalaam/ebitter/pkg/embedfs"
-	"github.com/mcbalaam/ebitter/pkg/systems"
+	"github.com/mcbalaam/ebitter/assetfs"
+	"github.com/mcbalaam/ebitter/events"
 )
 
 func setupFS(t *testing.T) {
 	t.Helper()
-	embedfs.SetFS(os.DirFS("../.."))
+	assetfs.SetFS(os.DirFS(".."))
 }
 
 // testMapPath is a stable fixture; media/maps/demo.tmx is live game content
 // and must not be used from tests.
-const testMapPath = "pkg/tiled/testdata/testmap.tmx"
+const testMapPath = "tiled/testdata/testmap.tmx"
 
 func TestLoadMapSpec(t *testing.T) {
 	setupFS(t)
@@ -116,7 +116,7 @@ func TestInteractionTouch(t *testing.T) {
 	box := &ColliderBox{X: 1, Y: 1, W: 2, H: 2}
 
 	fired := 0
-	systems.MasterSignalBus.Subscribe(sig, t, func(systems.Signal) { fired++ })
+	events.MasterSignalBus.Subscribe(sig, t, func(events.Signal) { fired++ })
 
 	if !zone.Check(box, false, t) {
 		t.Error("expected first trigger on entering the zone")
@@ -148,7 +148,7 @@ func TestInteractionButton(t *testing.T) {
 	box := &ColliderBox{X: 1, Y: 1, W: 2, H: 2}
 
 	fired := 0
-	systems.MasterSignalBus.Subscribe(sig, t, func(systems.Signal) { fired++ })
+	events.MasterSignalBus.Subscribe(sig, t, func(events.Signal) { fired++ })
 
 	if zone.Check(box, false, t) {
 		t.Error("must not fire without the button")

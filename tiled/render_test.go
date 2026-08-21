@@ -4,14 +4,14 @@ import (
 	"os"
 	"testing"
 
-	"github.com/mcbalaam/ebitter/pkg/embedfs"
+	"github.com/mcbalaam/ebitter/assetfs"
 )
 
 // TestBuildLayersPositions checks tile world placement against the CSV data.
 // Pixel-level checks are not possible here: ebiten.Image.ReadPixels requires
 // the running game loop.
 func TestBuildLayersPositions(t *testing.T) {
-	embedfs.SetFS(os.DirFS("../.."))
+	assetfs.SetFS(os.DirFS(".."))
 
 	m, err := LoadMap(testMapPath)
 	if err != nil {
@@ -32,7 +32,7 @@ func TestBuildLayersPositions(t *testing.T) {
 // TestLoadMapScaled verifies that loading with a scale factor multiplies all
 // world-space values: map dimensions, tile placement, colliders and zones.
 func TestLoadMapScaled(t *testing.T) {
-	embedfs.SetFS(os.DirFS("../.."))
+	assetfs.SetFS(os.DirFS(".."))
 
 	m, err := LoadMapScaled(testMapPath, 2)
 	if err != nil {

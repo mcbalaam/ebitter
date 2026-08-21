@@ -13,14 +13,13 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/mcbalaam/ebitter/pkg/assets"
-	"github.com/mcbalaam/ebitter/pkg/embedfs"
+	"github.com/mcbalaam/ebitter/assetfs"
 )
 
 // AtlasMeta is a single atlas entity (png + aseprite-style JSON).
 type AtlasMeta struct {
 	Name   string
-	States []assets.IconStateMeta
+	States []IconStateMeta
 }
 
 // AtlasManager caches cut icons to reuse them.
@@ -47,7 +46,7 @@ func (m *AtlasManager) CacheIconStates(path string) error {
 		return nil
 	}
 
-	entries, err := fs.ReadDir(embedfs.FS, path)
+	entries, err := fs.ReadDir(assetfs.FS, path)
 	if err != nil {
 		return err
 	}
@@ -62,23 +61,23 @@ func (m *AtlasManager) CacheIconStates(path string) error {
 		}
 
 		jsonPath := filepath.Join(path, name)
-		b, err := fs.ReadFile(embedfs.FS, jsonPath)
+		b, err := fs.ReadFile(assetfs.FS, jsonPath)
 		if err != nil {
 			return err
 		}
 
-		statesMeta, err := assets.ParseAsepriteJSON(b)
+		statesMeta, err := ParseAsepriteJSON(b)
 		if err != nil {
 			return fmt.Errorf("parsing %s: %w", jsonPath, err)
 		}
 
 		base := strings.TrimSuffix(name, filepath.Ext(name))
 		pngPath := filepath.Join(path, base+".png")
-		if _, err := fs.Stat(embedfs.FS, pngPath); err != nil {
+		if _, err := fs.Stat(assetfs.FS, pngPath); err != nil {
 			continue
 		}
 
-		f, err := embedfs.FS.Open(pngPath)
+		f, err := assetfs.FS.Open(pngPath)
 		if err != nil {
 			return fmt.Errorf("open png %s: %w", pngPath, err)
 		}

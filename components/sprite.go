@@ -3,7 +3,7 @@ package components
 import (
 	"time"
 
-	"github.com/mcbalaam/ebitter/pkg/render"
+	"github.com/mcbalaam/ebitter/render"
 )
 
 type Sprite struct {

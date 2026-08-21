@@ -1,6 +1,6 @@
 package main
 
-import "github.com/mcbalaam/ebitter/pkg/assets"
+import "github.com/mcbalaam/ebitter/internal/assets"
 
 func main() {
 	assets.ProcessFonts()

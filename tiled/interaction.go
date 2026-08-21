@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	gotiled "github.com/lafriks/go-tiled"
-	"github.com/mcbalaam/ebitter/pkg/systems"
+	"github.com/mcbalaam/ebitter/events"
 )
 
 // TriggerMode selects how an InteractionZone fires.
@@ -63,7 +63,7 @@ func (z *InteractionZone) Check(box *ColliderBox, interactPressed bool, source i
 }
 
 func (z *InteractionZone) emit(source interface{}) bool {
-	systems.MasterSignalBus.Emit(z.Signal, source, z)
+	events.MasterSignalBus.Emit(z.Signal, source, z)
 	return true
 }
 

@@ -4,13 +4,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/mcbalaam/ebitter/pkg/embedfs"
+	"github.com/mcbalaam/ebitter/assetfs"
 )
 
 func TestLoadMapPrerender(t *testing.T) {
-	embedfs.SetFS(os.DirFS("../.."))
+	assetfs.SetFS(os.DirFS(".."))
 
-	m, err := LoadMap("pkg/tiled/testdata/testmap.tmx")
+	m, err := LoadMap("tiled/testdata/testmap.tmx")
 	if err != nil {
 		t.Fatalf("LoadMap: %v", err)
 	}

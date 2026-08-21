@@ -1,21 +1,18 @@
 package main
 
 import (
-	"embed"
 	"log"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/mcbalaam/ebitter/pkg/embedfs"
-	"github.com/mcbalaam/ebitter/pkg/engine/queues"
-	"github.com/mcbalaam/ebitter/pkg/engine/scene"
+	"github.com/mcbalaam/ebitter"
+	"github.com/mcbalaam/ebitter/assetfs"
+	"github.com/mcbalaam/ebitter/queues"
+	"github.com/mcbalaam/ebitter/scene"
 )
 
-//go:embed media
-var mediaFS embed.FS
-
 func init() {
-	embedfs.SetFS(mediaFS)
+	assetfs.SetFS(ebitter.Media)
 }
 
 type Game struct {
@@ -41,7 +38,7 @@ func main() {
 	ebiten.SetWindowTitle("Ebitter")
 
 	game := &Game{sm: &scene.SceneManager{}}
-	mapScene, err := scene.NewTiledMapScene("media/maps/ruins.tmx", 2)
+	mapScene, err := NewDemoScene("media/maps/ruins.tmx", 2)
 	if err != nil {
 		log.Fatalf("map: %v", err)
 	}

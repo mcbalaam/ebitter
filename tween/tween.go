@@ -4,7 +4,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/mcbalaam/ebitter/pkg/engine/queues"
+	"github.com/mcbalaam/ebitter/queues"
 )
 
 type AnimationMode int

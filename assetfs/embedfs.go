@@ -1,7 +1,7 @@
-// Package embedfs provides a cross-platform filesystem for embedded assets.
+// Package assetfs provides a cross-platform filesystem for game assets.
 // Desktop: reads from the real filesystem via os.DirFS.
 // WASM: reads from embedded data set by the main package.
-package embedfs
+package assetfs
 
 import "io/fs"
 

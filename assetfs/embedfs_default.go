@@ -1,6 +1,6 @@
 //go:build !wasm
 
-package embedfs
+package assetfs
 
 import "os"
 

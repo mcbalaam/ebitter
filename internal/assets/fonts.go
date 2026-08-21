@@ -1,5 +1,7 @@
 //go:build !wasm
 
+// Package assets provides build-time font rasterization (TTF -> spritesheet),
+// used by cmd/fontgen via go:generate.
 package assets
 
 import (

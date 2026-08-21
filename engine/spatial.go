@@ -3,7 +3,7 @@ package engine
 import (
 	"math"
 
-	"github.com/mcbalaam/ebitter/pkg/engine/components"
+	"github.com/mcbalaam/ebitter/components"
 )
 
 type SpatialGrid struct {

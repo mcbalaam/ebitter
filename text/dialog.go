@@ -5,7 +5,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
-	"github.com/mcbalaam/ebitter/pkg/sound"
+	"github.com/mcbalaam/ebitter/sound"
 )
 
 type DialogManager struct {

@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/mcbalaam/ebitter/pkg/engine/queues"
-	"github.com/mcbalaam/ebitter/pkg/render"
-	"github.com/mcbalaam/ebitter/pkg/systems"
+	"github.com/mcbalaam/ebitter/events"
+	"github.com/mcbalaam/ebitter/queues"
+	"github.com/mcbalaam/ebitter/render"
 )
 
 type Entity struct {
@@ -66,7 +66,7 @@ func (e *Entity) CheckCollisionsWithList(others []*Entity, signalName string) {
 		for _, other := range others {
 			if e.Collider != nil && other.Collider != nil {
 				if e.Collider.CollidesWith(other.Collider) {
-					systems.MasterSignalBus.Emit(signalName, e, other)
+					events.MasterSignalBus.Emit(signalName, e, other)
 				}
 			}
 		}
@@ -107,7 +107,7 @@ func (e *Entity) CheckCollisionsWithList(others []*Entity, signalName string) {
 	wg.Wait()
 
 	for _, p := range hits {
-		systems.MasterSignalBus.Emit(signalName, p.self, p.other)
+		events.MasterSignalBus.Emit(signalName, p.self, p.other)
 	}
 }
 
