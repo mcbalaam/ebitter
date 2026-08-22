@@ -16,13 +16,16 @@ Live demo here: https://mcblm.xyz/ebitter
 
 What I currently have in store:
 - scenes: proper `Scene` management and swapping;
-- `Camera`: move, tilt and zoom the camera around the scene;
+- `Camera`: move and zoom the camera around the scene;
 - sprite atlas cutting: create animated multi-`state` sprites using Aseprite's tag system and sprite sheet exports;
 - font cutting: use any `.ttf` font in your game!
 - UTDR-like dialogue scripting system: a proper `DialogueHandler` and markers to pause/end/otherwise modify the text;
 - separate `Update`, `Delete` and layered `Draw` queues;
-- componentable `Object` to be used as a base for any on-screen things;
-- SAT collision detection, hitboxes as a component;
-- a signal bus and a bare event system to subscribe and listen to events;
+- component-based `Entity` to be used as a base for any on-screen things;
+- SAT collision detection, hitboxes as a component, plus a spatial grid for broad-phase neighbor queries;
+- a signal bus to subscribe to and emit game events;
 - a simplified input handler with frame-perfect snapshots;
-- improved sound playing: registering sounds to be reused, pitch variation, volume controls.
+- improved sound playing: registering sounds to be reused, pitch variation, volume controls;
+- Tiled map support: load `.tmx` maps with prerendered layers, collision boxes, named points/spawn markers and interaction zones firing signals on touch or button press;
+- generic tweening with easing functions, once/loop/ping-pong modes, delays and repeats;
+- an embedded filesystem helper aware of WASM builds.
