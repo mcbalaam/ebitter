@@ -4,7 +4,7 @@ A set of tools and upgrades for [ebitngine](https://ebitengine.org) to make writ
 
 All of the tooling required to work with Ebitter is free and opensource.
 
-<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/d39a8179-87c3-48bb-abea-a67b629caccd" />
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/1d4248ed-79ef-4a70-8b55-ac551697bc91" />
 <br>
 
 <sub>A demo scene running in Ebitter showcasing tilemap loading; [Aseprite](https://github.com/aseprite/aseprite/) and [Tiled](https://github.com/mapeditor/tiled/) are open. Tilemap and all the artwork are from UNDERTALE by Toby Fox and are used for demonstration purposes.</sub>
