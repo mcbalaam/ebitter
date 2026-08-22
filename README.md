@@ -1,6 +1,6 @@
 # ebitter
 
-A set of tools and upgrades for [ebitngine](https://ebitengine.org) to make writing games in Go easier!
+A set of utilities for [ebitngine](https://ebitengine.org) to make writing games in Go easier!
 
 All of the tooling required to work with Ebitter is free and opensource.
 
