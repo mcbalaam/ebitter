@@ -1,0 +1,28 @@
+package scene
+
+import (
+	"image/color"
+	"time"
+
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/mcbalaam/ebitter/queues"
+)
+
+type GameScene struct {
+	BgColor color.Color
+}
+
+func NewGameScene() *GameScene {
+	return &GameScene{
+		BgColor: color.Black,
+	}
+}
+
+func (s *GameScene) Update(dt time.Duration) {
+	queues.DefaultUpdateQueue.Execute(dt)
+}
+
+func (s *GameScene) Draw(screen *ebiten.Image) {
+	screen.Fill(s.BgColor)
+	queues.DefaultQueue.Execute(screen)
+}

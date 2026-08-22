@@ -35,3 +35,4 @@ ebitter
 ebitter.wasm
 wasm_exec.js
 docs/
+*.tiled-session

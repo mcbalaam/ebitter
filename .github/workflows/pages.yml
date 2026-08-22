@@ -25,7 +25,7 @@ jobs:
           go-version: stable
 
       - name: Build WASM
-        run: GOOS=js GOARCH=wasm go build -o ebitter.wasm .
+        run: GOOS=js GOARCH=wasm go build -o ebitter.wasm ./cmd/demo
 
       - name: Copy wasm_exec.js
         run: cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" .
