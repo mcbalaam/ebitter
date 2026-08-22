@@ -109,7 +109,7 @@ func (p *TextParser) Parse() []DialogueCommand {
 
 		char := string(runes[i])
 		charWidth := p.CharWidth[char]
-		if p.Font != nil {
+		if charWidth == 0 && p.Font != nil {
 			if err := p.Font.SetIconState(char); err == nil && p.Font.CurrentState.CurrentFrameRef != nil {
 				fr := p.Font.CurrentState.CurrentFrameRef
 				if fr.Advance > 0 {

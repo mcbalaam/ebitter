@@ -8,6 +8,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/mcbalaam/ebitter/queues"
 	"github.com/mcbalaam/ebitter/render"
+	"github.com/mcbalaam/ebitter/sound"
 )
 
 type Glyph struct {
@@ -42,6 +43,7 @@ type TextDisplay struct {
 	IsComplete  bool
 	OnComplete  func()
 	CharSound   string
+	SoundPlayer *sound.SoundPlayer
 	elapsed     float64
 	waiting     bool
 	skipSound   bool
@@ -69,7 +71,7 @@ func NewTextDisplay(text string, style TextStyle) *TextDisplay {
 		LineSpacing:  style.LineSpacing,
 		Delay:        style.DefaultDelay,
 		Font:         font,
-		CharWidth:    make(map[string]int),
+		CharWidth:    style.CharWidths,
 		CharSpacing:  style.CharSpacing,
 		DefaultColor: style.Color,
 	}
@@ -114,8 +116,8 @@ func (t *TextDisplay) skipAll() {
 }
 
 func (t *TextDisplay) revealChar(cmd DialogueCommand) {
-	if !t.skipSound && t.CharSound != "" && DefaultDialog.SoundPlayer != nil {
-		DefaultDialog.SoundPlayer.PlaySound(t.CharSound, 100)
+	if !t.skipSound && t.CharSound != "" && t.SoundPlayer != nil {
+		t.SoundPlayer.PlaySound(t.CharSound, 0.5)
 	}
 	font := loadFont(t.textStr.Style.FontName)
 	if font == nil {

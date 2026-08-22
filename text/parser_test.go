@@ -77,6 +77,29 @@ func TestParserPauseAdvancesTrigger(t *testing.T) {
 	}
 }
 
+func TestParserCharWidthOverride(t *testing.T) {
+	p := &TextParser{
+		Text:      "A B",
+		StartX:    0,
+		StartY:    0,
+		ScaleX:    1,
+		ScaleY:    1,
+		Delay:     0,
+		CharWidth: map[string]int{" ": 100, "B": 50},
+	}
+	cmds := p.Parse()
+	if len(cmds) != 3 {
+		t.Fatalf("expected 3 commands, got %d", len(cmds))
+	}
+	// No font: fallback width 20 applies only to chars without an override.
+	if cmds[1].X != 20+2 {
+		t.Errorf("space should start after A (fallback 20 + spacing 2), got %f", cmds[1].X)
+	}
+	if cmds[2].X != 20+2+100+2 {
+		t.Errorf("space override not applied: B at %f", cmds[2].X)
+	}
+}
+
 func TestParserEndMarkers(t *testing.T) {
 	p := &TextParser{
 		Text:         "A$eB$f",

@@ -98,6 +98,7 @@ func (dm *DialogManager) start(text string, style TextStyle, charSound string) {
 		return
 	}
 	td.CharSound = charSound
+	td.SoundPlayer = dm.SoundPlayer
 	dm.active = td
 }
 

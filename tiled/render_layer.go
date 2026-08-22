@@ -10,13 +10,13 @@ import (
 // TileH are in (already scaled) world coordinates; Scale is the factor the
 // tile image itself is magnified by when drawn.
 type TileAt struct {
-	Image   *ebiten.Image
-	X, Y    float64
-	TileW   int
-	TileH   int
-	Scale   float64
-	FlipH   bool
-	FlipV   bool
+	Image    *ebiten.Image
+	X, Y     float64
+	TileW    int
+	TileH    int
+	Scale    float64
+	FlipH    bool
+	FlipV    bool
 	FlipDiag bool
 }
 

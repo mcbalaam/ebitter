@@ -35,9 +35,12 @@ func (g *Game) Layout(_, _ int) (int, int) {
 
 func main() {
 	ebiten.SetWindowSize(640, 480)
-	ebiten.SetWindowTitle("Ebitter")
+	ebiten.SetWindowTitle("Undebitter")
 
 	game := &Game{sm: &scene.SceneManager{}}
+	if err := initDialogAudio(); err != nil {
+		log.Printf("dialog audio: %v", err)
+	}
 	mapScene, err := NewDemoScene("media/maps/ruins.tmx", 2)
 	if err != nil {
 		log.Fatalf("map: %v", err)

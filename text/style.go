@@ -14,6 +14,7 @@ type TextStyle struct {
 	Instant      bool
 	CharSpacing  float64
 	Color        color.Color
+	CharWidths   map[string]int
 }
 
 func (s TextStyle) WithInstant(instant bool) TextStyle {
