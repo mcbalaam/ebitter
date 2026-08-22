@@ -15,31 +15,31 @@ type demoDialog struct {
 }
 
 var demoDialogs = map[string]demoDialog{
-	"sign_floor": {
-		sound: sndText,
-		phrases: []string{
-			"* (An old, worn sign lies on the floor.)",
-			"* (Most of the letters have faded away...)",
-			"* (...but you can still make out$n  the word $cffd83a\"RUINS\"$cffffff.)",
-		},
-	},
-	"froggit_left": {
-		sound: sndText,
-		phrases: []string{
-			"* Ribbit, ribbit.",
-			"* (The froggit stares at you,$n  visibly judging your outfit.)",
-			"* (It seems unimpressed.)",
-			"* (You feel $cff3a3aDETERMINATION$cffffff anyway.)",
-		},
-	},
-	"froggit_right": {
-		sound: sndText,
-		phrases: []string{
-			"* Ribbit! Ribbit!",
-			"* (The froggit hops in place,$n  completely unbothered.)",
-			"* (What a happy little guy.)",
-		},
-	},
+	// "sign_floor": {
+	// 	sound: sndText,
+	// 	phrases: []string{
+	// 		"* (An old, worn sign lies on the floor.)",
+	// 		"* (Most of the letters have faded away...)",
+	// 		"* (...but you can still make out$n  the word $cffd83a\"RUINS\"$cffffff.)",
+	// 	},
+	// },
+	// "froggit_left": {
+	// 	sound: sndText,
+	// 	phrases: []string{
+	// 		"* Ribbit, ribbit.",
+	// 		"* (The froggit stares at you,$n  visibly judging your outfit.)",
+	// 		"* (It seems unimpressed.)",
+	// 		"* (You feel $cff3a3aDETERMINATION$cffffff anyway.)",
+	// 	},
+	// },
+	// "froggit_right": {
+	// 	sound: sndText,
+	// 	phrases: []string{
+	// 		"* Ribbit! Ribbit!",
+	// 		"* (The froggit hops in place,$n  completely unbothered.)",
+	// 		"* (What a happy little guy.)",
+	// 	},
+	// },
 	"sign_wall": {
 		sound: sndText,
 		phrases: []string{
