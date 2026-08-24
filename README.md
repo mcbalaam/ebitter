@@ -1,4 +1,4 @@
-# ebitter
+<h1><img valign="middle" width="50" height="50" alt="bitter" src="https://github.com/user-attachments/assets/42f58e98-4ae7-43d6-9822-08e848eb1b46"/> ebitter</h1>
 
 A set of utilities for [ebitngine](https://ebitengine.org) to make writing games in Go easier!
 
