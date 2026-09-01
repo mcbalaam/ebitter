@@ -50,6 +50,10 @@ type TextDisplay struct {
 	revealedAll bool
 }
 
+// NewTextDisplay parses text into a timed reveal command list and schedules
+// the display on the draw queue. Updates must be driven by the owner —
+// DialogManager does this for dialog; standalone users should call Update(dt)
+// (or schedule it on queues.DefaultUpdateQueue) themselves.
 func NewTextDisplay(text string, style TextStyle) *TextDisplay {
 	font := loadFont(style.FontName)
 	if font == nil {
@@ -83,7 +87,6 @@ func NewTextDisplay(text string, style TextStyle) *TextDisplay {
 	}
 
 	queues.DefaultQueue.ScheduleAt(td, queues.LayerText)
-	queues.DefaultUpdateQueue.Schedule(td)
 
 	return td
 }

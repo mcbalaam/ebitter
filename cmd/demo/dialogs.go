@@ -44,7 +44,7 @@ var demoDialogs = map[string]demoDialog{
 		sound: sndText,
 		phrases: []string{
 			"* ( An old sign. )",
-			"* ( No matter how hard you tried,$p200$n  you couldn't make out any words. )",
+			"* ( No matter how hard you tried,$p300$n  you couldn't make out any words. )",
 		},
 	},
 }
@@ -80,7 +80,7 @@ var dialogStyle = text.TextStyle{
 	ScaleY:       0.25,
 	FontHeight:   130,
 	LineSpacing:  10,
-	DefaultDelay: 0.03,
+	DefaultDelay: 0.035,
 	Color:        color.White,
 	CharWidths:   map[string]int{" ": 60},
 }
