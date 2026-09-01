@@ -1,9 +1,9 @@
 # Ebitter Quickstart
 
 A short guide to the core pieces of [ebitter](https://github.com/mcbalaam/ebitter):
-scenes, Tiled maps, Aseprite icons, entities and the signal bus. The snippets
-here are distilled from `cmd/demo/`, so read that directory for a complete
-working example.
+scenes, Tiled maps, the camera, Aseprite icons, entities and the signal bus. The
+snippets here are distilled from `cmd/demo/`, so read that directory for a
+complete working example.
 
 The module path is `github.com/mcbalaam/ebitter`.
 
@@ -77,7 +77,7 @@ func init() {
 ```
 
 All paths passed to loaders (Tiled, Aseprite, sound) are relative to this
-filesystem, e.g. `_media/maps/ruins.tmx`.
+filesystem, e.g. `media/maps/ruins.tmx`.
 
 ## 2. Scenes
 
@@ -132,7 +132,7 @@ global queues for you — see section 6.
 ```go
 import "github.com/mcbalaam/ebitter/tiled"
 
-m, err := tiled.LoadMapScaled("_media/maps/ruins.tmx", 2)
+m, err := tiled.LoadMapScaled("media/maps/ruins.tmx", 2)
 ```
 
 `LoadMap(path)` is the same with scale `1`. Both parse the `.tmx` and
@@ -141,7 +141,7 @@ interactions, points) and want to defer the rendering until the graphics
 context is ready, use the "spec" variant instead:
 
 ```go
-m, err := tiled.LoadMapSpecScaled("_media/maps/ruins.tmx", tiled.DefaultTilesetCache, 2)
+m, err := tiled.LoadMapSpecScaled("media/maps/ruins.tmx", tiled.DefaultTilesetCache, 2)
 // later, once inside Update (Ebiten graphics context is running):
 if err := m.BuildLayers(tiled.DefaultTilesetCache); err != nil { /* ... */ }
 ```
@@ -149,7 +149,7 @@ if err := m.BuildLayers(tiled.DefaultTilesetCache); err != nil { /* ... */ }
 Drawing and querying:
 
 ```go
-// draw all visible layers with a camera offset
+// draw all visible layers, offset by a scroll/camera origin (see section 7)
 m.DrawLayers(screen, scrollX, scrollY)
 
 // world size, scaled
@@ -192,7 +192,7 @@ pair:
 ```go
 import "github.com/mcbalaam/ebitter/render"
 
-icon, err := render.NewAnimatedIconFromPath("_media/sprites/frisk", "down")
+icon, err := render.NewAnimatedIconFromPath("media/sprites/frisk", "down")
 ```
 
 `"down"` is the initial state, taken from the Aseprite tag name. Then per frame:
@@ -203,12 +203,8 @@ icon.Update(dt)                     // advance frames
 icon.Draw(screen, x, y, scaleX, scaleY, 0)
 ```
 
-The default base path for sprites is `_media/sprites`. Change it globally if you
-keep them elsewhere:
-
-```go
-render.MasterAtlasManager.BasePath = "my/sprites"
-```
+The path is the directory (relative to the `assetfs` root) holding the
+`.png`/`.json` pair; pass it in full as above.
 
 ## 5. An entity with a hitbox and an icon
 
@@ -221,7 +217,7 @@ import (
 	"github.com/mcbalaam/ebitter/queues"
 )
 
-icon, err := render.NewAnimatedIconFromPath("_media/sprites/frisk", "down")
+icon, err := render.NewAnimatedIconFromPath("media/sprites/frisk", "down")
 
 player := &components.Entity{
 	Transform: &components.Transform{X: 80, Y: 200, ScaleX: 1, ScaleY: 1},
@@ -278,6 +274,48 @@ events.MasterSignalBus.Subscribe("open_door", player, func(s events.Signal) {
 })
 ```
 
+## 7. Camera
+
+`engine.Camera` is a world-coordinate camera: `X, Y` is the world point shown
+at the center of the screen, `Zoom` scales the view. Render the world inside
+`Apply`; it takes care of panning, clamping to the map bounds and nearest-
+neighbour zooming:
+
+```go
+import "github.com/mcbalaam/ebitter/engine"
+
+cam := engine.NewCamera()
+cam.SetBounds(float64(m.Width()), float64(m.Height())) // keep the viewport on the map
+cam.SetZoomLimits(m.MinZoom(), m.MaxZoom())            // map float properties min_zoom / max_zoom
+
+func (s *playScene) Update(dt time.Duration) {
+	// tweens (smooth camera, TextStrings, ...) live on the default update queue;
+	// scene.GameScene runs it for you, custom scenes must call it once per frame:
+	queues.DefaultUpdateQueue.Execute(dt)
+
+	cam.CenterOn(player.X+player.W/2, player.Y+player.H/2)
+}
+
+func (s *playScene) Draw(screen *ebiten.Image) {
+	screen.Fill(bg)
+	cam.Apply(screen, func(target *ebiten.Image, ox, oy float64) {
+		m.DrawLayers(target, ox, oy) // world drawing goes in here,
+		player.Draw(target)          // offset by ox/oy
+	})
+	// HUD and dialogs drawn after Apply stay in screen space
+}
+```
+
+- Zoom snaps by default. `cam.SetZoomLimits(min, max)` restricts it, and maps
+  can carry the limits themselves as float properties `min_zoom` / `max_zoom`,
+  read via `m.MinZoom()` / `m.MaxZoom()`. If zooming out makes the viewport
+  larger than the map, the map is centered instead of clamped.
+- `cam.SetSmooth(true)` makes every `CenterOn` and `SetZoom` transition run
+  through a tween (durations: `FollowDuration`, `ZoomDuration`). This requires
+  `queues.DefaultUpdateQueue` to be executed each frame.
+- The demo showcases smooth follow on key `W`; the on-screen hint turns yellow
+  while it is active.
+
 ## Putting it together
 
 1. `init()` — set `assetfs` (embed or working directory).
@@ -288,5 +326,7 @@ events.MasterSignalBus.Subscribe("open_door", player, func(s events.Signal) {
 5. Compose `components.Entity` (Transform + Collider + Sprite) and schedule it
    on the queues.
 6. Decouple logic with `events.MasterSignalBus.Subscribe`/`Emit`.
+7. Frame the world with `engine.Camera` (`CenterOn`/`SetZoom`/`Apply`, optional
+   smooth follow), and run the update queue each frame for tweens to move.
 
 See `cmd/demo/` for a full example that ties these together.

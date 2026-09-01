@@ -3,6 +3,7 @@ package main
 import (
 	"image/color"
 	"log"
+	"math"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -20,16 +21,41 @@ type demoScene struct {
 	BgColor       color.Color
 	ShowColliders bool
 	ShowZones     bool
+	ShowCamArrow  bool
 
-	input   *engine.Input
-	player  *tiled.ColliderBox
-	color   color.RGBA
-	speed   float64
-	scrollX float64
-	scrollY float64
-	built   bool
-	sprite  *render.AnimatedIcon
-	facing  string
+	input         *engine.Input
+	player        *tiled.ColliderBox
+	color         color.RGBA
+	speed         float64
+	built         bool
+	sprite        *render.AnimatedIcon
+	facing        string
+	hintSmooth    *text.TextString
+	hintColliders *text.TextString
+	hintZones     *text.TextString
+	hintArrow     *text.TextString
+}
+
+const (
+	hudHintColliders = "1 to toggle hitboxes"
+	hudHintZones     = "2 to toggle interaction zones"
+	hudHintFollow    = "3 to toggle smooth camera"
+	hudHintArrow     = "4 to toggle camera debug"
+)
+
+var hudHintColor = color.RGBA{0xff, 0xff, 0xff, 0xff}
+var hudHintActiveColor = color.RGBA{0xff, 0xd0, 0x3a, 0xff}
+
+func hudStyle() text.TextStyle {
+	return text.TextStyle{
+		FontName:    "mars",
+		ScaleX:      0.25,
+		ScaleY:      0.25,
+		FontHeight:  130,
+		LineSpacing: 10,
+		Color:       hudHintColor,
+		CharWidths:  map[string]int{" ": 60},
+	}
 }
 
 func NewDemoScene(mapPath string, mapScale float64) (*demoScene, error) {
@@ -56,11 +82,32 @@ func NewDemoScene(mapPath string, mapScale float64) (*demoScene, error) {
 		s.player.X = p.X - pw/2
 		s.player.Y = p.Y - ph/2
 	}
+
+	cam := engine.NewCamera()
+	cam.SetBounds(float64(m.Width()), float64(m.Height()))
+	cam.SetViewport(640, 480)
+	cam.CenterOn(s.player.X+pw/2, s.player.Y+ph/2)
+	s.Camera = cam
+
+	hs := hudStyle()
+	s.hintSmooth = text.NewTextString(hudHintFollow, 20, 40, hs)
+	s.hintSmooth.Show()
+	hs2 := hudStyle()
+	s.hintColliders = text.NewTextString(hudHintColliders, 20, 0, hs2)
+	s.hintColliders.Show()
+	hs3 := hudStyle()
+	s.hintZones = text.NewTextString(hudHintZones, 20, 20, hs3)
+	s.hintZones.Show()
+	hs4 := hudStyle()
+	s.hintArrow = text.NewTextString(hudHintArrow, 20, 60, hs4)
+	s.hintArrow.Show()
+
 	return s, nil
 }
 
 func (s *demoScene) Update(dt time.Duration) {
 	s.input.Update()
+	queues.DefaultUpdateQueue.Execute(dt)
 
 	if !s.built {
 		s.built = true
@@ -77,7 +124,7 @@ func (s *demoScene) Update(dt time.Duration) {
 
 	if text.DefaultDialog.Active() {
 		text.DefaultDialog.Update(dt)
-		s.updateCamera()
+		s.followCamera()
 		return
 	}
 
@@ -97,9 +144,18 @@ func (s *demoScene) Update(dt time.Duration) {
 
 	if s.input.JustPressed(ebiten.Key1) {
 		s.ShowColliders = !s.ShowColliders
+		s.setHintColor(s.hintColliders, s.ShowColliders)
 	}
 	if s.input.JustPressed(ebiten.Key2) {
 		s.ShowZones = !s.ShowZones
+		s.setHintColor(s.hintZones, s.ShowZones)
+	}
+	if s.input.JustPressed(ebiten.Key4) {
+		s.ShowCamArrow = !s.ShowCamArrow
+		s.setHintColor(s.hintArrow, s.ShowCamArrow)
+	}
+	if s.input.JustPressed(ebiten.Key3) {
+		s.setSmoothFollow(!s.Camera.Smooth())
 	}
 
 	seconds := dt.Seconds()
@@ -139,7 +195,7 @@ func (s *demoScene) Update(dt time.Duration) {
 		}
 	}
 
-	s.updateCamera()
+	s.followCamera()
 }
 
 func (s *demoScene) facedZone() *tiled.InteractionZone {
@@ -168,27 +224,30 @@ func (s *demoScene) facedZone() *tiled.InteractionZone {
 	return nil
 }
 
-func (s *demoScene) updateCamera() {
-	const (
-		screenW = 640
-		screenH = 480
-	)
-	halfW := float64(screenW) / 2
-	halfH := float64(screenH) / 2
+func (s *demoScene) followCamera() {
+	s.Camera.CenterOn(s.player.X+s.player.W/2, s.player.Y+s.player.H/2)
+}
 
-	cx := s.player.X + s.player.W/2
-	cy := s.player.Y + s.player.H/2
+// setSmoothFollow toggles tweened camera transitions and recolors the follow
+// hint yellow while smooth mode is active.
+func (s *demoScene) setSmoothFollow(on bool) {
+	s.Camera.SetSmooth(on)
+	s.setHintColor(s.hintSmooth, on)
+}
 
-	maxX := float64(s.Map.Width() - screenW)
-	maxY := float64(s.Map.Height() - screenH)
-	if maxX < 0 {
-		maxX = 0
+// setHintColor highlights a debug hint yellow while its mode is active. The
+// hint image is baked at load time, so recoloring forces a re-bake via
+// SetText; unchanged colors are skipped.
+func (s *demoScene) setHintColor(ts *text.TextString, active bool) {
+	clr := color.Color(hudHintColor)
+	if active {
+		clr = color.Color(hudHintActiveColor)
 	}
-	if maxY < 0 {
-		maxY = 0
+	if ts.Style.Color == clr {
+		return
 	}
-	s.scrollX = clamp(cx-halfW, 0, maxX)
-	s.scrollY = clamp(cy-halfH, 0, maxY)
+	ts.Style.Color = clr
+	ts.SetText(ts.Text)
 }
 
 func (s *demoScene) moveAxis(axis int, delta float64, solids []*tiled.ColliderBox) {
@@ -222,48 +281,51 @@ func (s *demoScene) moveAxis(axis int, delta float64, solids []*tiled.ColliderBo
 
 func (s *demoScene) Draw(screen *ebiten.Image) {
 	screen.Fill(s.BgColor)
-	sx := -s.scrollX
-	sy := -s.scrollY
+	s.Camera.Apply(screen, func(target *ebiten.Image, sx, sy float64) {
+		s.Map.DrawLayers(target, sx, sy)
 
-	s.Map.DrawLayers(screen, sx, sy)
-
-	b := s.player
-	if s.sprite != nil && s.sprite.CurrentState != nil && len(s.sprite.CurrentState.Frames) > 0 {
-		m := s.Map.Scale()
-		frame := s.sprite.CurrentState.Frames[s.sprite.CurrentState.CurrentFrame].Image
-		if frame != nil {
-			fb := frame.Bounds()
-			fw := float64(fb.Dx()) * m
-			fh := float64(fb.Dy()) * m
-			x := b.X + sx + (b.W-fw)/2
-			y := b.Y + sy + b.H - fh
-			s.sprite.Draw(screen, x, y, m, m, 0)
-		}
-	} else {
-		vector.DrawFilledRect(screen,
-			float32(b.X+sx), float32(b.Y+sy), float32(b.W), float32(b.H),
-			s.color, true)
-	}
-
-	if s.ShowZones {
-		for _, z := range s.Map.Interactions() {
-			clr := color.RGBA{0x3a, 0xb8, 0xff, 0x60}
-			if z.Trigger == tiled.TriggerButton {
-				clr = color.RGBA{0xff, 0xd0, 0x3a, 0x60}
+		b := s.player
+		if s.sprite != nil && s.sprite.CurrentState != nil && len(s.sprite.CurrentState.Frames) > 0 {
+			m := s.Map.Scale()
+			frame := s.sprite.CurrentState.Frames[s.sprite.CurrentState.CurrentFrame].Image
+			if frame != nil {
+				fb := frame.Bounds()
+				fw := float64(fb.Dx()) * m
+				fh := float64(fb.Dy()) * m
+				x := b.X + sx + (b.W-fw)/2
+				y := b.Y + sy + b.H - fh
+				s.sprite.Draw(target, x, y, m, m, 0)
 			}
-			vector.DrawFilledRect(screen,
-				float32(z.Rect.X+sx), float32(z.Rect.Y+sy), float32(z.Rect.W), float32(z.Rect.H),
-				clr, false)
+		} else {
+			vector.DrawFilledRect(target,
+				float32(b.X+sx), float32(b.Y+sy), float32(b.W), float32(b.H),
+				s.color, true)
 		}
-	}
 
-	if s.ShowColliders {
-		for _, c := range s.Map.Colliders() {
-			vector.StrokeRect(screen,
-				float32(c.X+sx), float32(c.Y+sy), float32(c.W), float32(c.H),
-				2, color.RGBA{0xff, 0x40, 0x40, 0xc0}, true)
+		if s.ShowZones {
+			for _, z := range s.Map.Interactions() {
+				clr := color.RGBA{0x3a, 0xb8, 0xff, 0x60}
+				if z.Trigger == tiled.TriggerButton {
+					clr = color.RGBA{0xff, 0xd0, 0x3a, 0x60}
+				}
+				vector.DrawFilledRect(target,
+					float32(z.Rect.X+sx), float32(z.Rect.Y+sy), float32(z.Rect.W), float32(z.Rect.H),
+					clr, false)
+			}
 		}
-	}
+
+		if s.ShowColliders {
+			for _, c := range s.Map.Colliders() {
+				vector.StrokeRect(target,
+					float32(c.X+sx), float32(c.Y+sy), float32(c.W), float32(c.H),
+					2, color.RGBA{0xff, 0x40, 0x40, 0xc0}, true)
+			}
+		}
+
+		if s.ShowCamArrow {
+			s.drawCamArrow(target, sx, sy)
+		}
+	})
 
 	if text.DefaultDialog.Active() {
 		drawTextbox(screen)
@@ -271,12 +333,40 @@ func (s *demoScene) Draw(screen *ebiten.Image) {
 	queues.DefaultQueue.Execute(screen)
 }
 
-func clamp(v, lo, hi float64) float64 {
-	if v < lo {
-		return lo
+// drawCamArrow renders a debug arrow from the camera center (the true
+// on-screen center, kept clamped by the camera itself) to the player's hitbox
+// center, plus a cross marking that point.
+func (s *demoScene) drawCamArrow(target *ebiten.Image, sx, sy float64) {
+	const (
+		stroke = 2
+		head   = 10.0
+		cross  = 6.0
+	)
+	clr := color.RGBA{0x40, 0xff, 0x40, 0xff}
+
+	fromX, fromY := s.Camera.X+sx, s.Camera.Y+sy
+	toX, toY := s.player.X+s.player.W/2+sx, s.player.Y+s.player.H/2+sy
+
+	vector.StrokeLine(target,
+		float32(fromX-cross), float32(fromY), float32(fromX+cross), float32(fromY),
+		stroke, clr, true)
+	vector.StrokeLine(target,
+		float32(fromX), float32(fromY-cross), float32(fromX), float32(fromY+cross),
+		stroke, clr, true)
+
+	vector.StrokeLine(target,
+		float32(fromX), float32(fromY), float32(toX), float32(toY),
+		stroke, clr, true)
+
+	dx, dy := toX-fromX, toY-fromY
+	if dx*dx+dy*dy > head*head {
+		angle := math.Atan2(dy, dx)
+		for _, spread := range []float64{math.Pi - 0.5, math.Pi + 0.5} {
+			vector.StrokeLine(target,
+				float32(toX), float32(toY),
+				float32(toX+head*math.Cos(angle+spread)),
+				float32(toY+head*math.Sin(angle+spread)),
+				stroke, clr, true)
+		}
 	}
-	if v > hi {
-		return hi
-	}
-	return v
 }

@@ -2,7 +2,7 @@ package render
 
 import (
 	"fmt"
-	"path/filepath"
+	"path"
 	"strings"
 	"time"
 
@@ -35,12 +35,12 @@ type AnimatedIcon struct {
 }
 
 // Looks up the provided icon and state in the cache. Tries to cut and cache the icon if not already cached.
-func NewAnimatedIconFromPath(path string, stateKey string) (*AnimatedIcon, error) {
-	if err := MasterAtlasManager.CacheIconStates(path); err != nil {
+func NewAnimatedIconFromPath(dir string, stateKey string) (*AnimatedIcon, error) {
+	if err := MasterAtlasManager.CacheIconStates(dir); err != nil {
 		return nil, fmt.Errorf("cache icon states: %w", err)
 	}
 
-	prefix := filepath.Base(path)
+	prefix := path.Base(dir)
 	iconStates := make(map[string]*IconState)
 	MasterAtlasManager.mu.RLock()
 	for k, v := range MasterAtlasManager.IconStateCache {

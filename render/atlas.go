@@ -7,7 +7,7 @@ import (
 	"image/png"
 	"io"
 	"io/fs"
-	"path/filepath"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -38,15 +38,15 @@ var MasterAtlasManager = &AtlasManager{
 }
 
 // Parses an Aseprite format .json file, reads the .png spritesheet from the provided directory and cuts it. Caches the result.
-func (m *AtlasManager) CacheIconStates(path string) error {
+func (m *AtlasManager) CacheIconStates(dir string) error {
 	m.mu.RLock()
-	done := m.processed[path]
+	done := m.processed[dir]
 	m.mu.RUnlock()
 	if done {
 		return nil
 	}
 
-	entries, err := fs.ReadDir(assetfs.FS, path)
+	entries, err := fs.ReadDir(assetfs.FS, dir)
 	if err != nil {
 		return err
 	}
@@ -60,7 +60,7 @@ func (m *AtlasManager) CacheIconStates(path string) error {
 			continue
 		}
 
-		jsonPath := filepath.Join(path, name)
+		jsonPath := path.Join(dir, name)
 		b, err := fs.ReadFile(assetfs.FS, jsonPath)
 		if err != nil {
 			return err
@@ -71,8 +71,8 @@ func (m *AtlasManager) CacheIconStates(path string) error {
 			return fmt.Errorf("parsing %s: %w", jsonPath, err)
 		}
 
-		base := strings.TrimSuffix(name, filepath.Ext(name))
-		pngPath := filepath.Join(path, base+".png")
+		base := strings.TrimSuffix(name, path.Ext(name))
+		pngPath := path.Join(dir, base+".png")
 		if _, err := fs.Stat(assetfs.FS, pngPath); err != nil {
 			continue
 		}
@@ -97,7 +97,7 @@ func (m *AtlasManager) CacheIconStates(path string) error {
 		for _, st := range iconStates {
 			m.IconStateCache[base+"/"+st.Name] = st
 		}
-		m.processed[path] = true
+		m.processed[dir] = true
 		m.mu.Unlock()
 	}
 

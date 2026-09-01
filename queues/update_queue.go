@@ -38,6 +38,18 @@ func (q *UpdateQueue) Unschedule(o Updateable) {
 	}
 }
 
+// IsScheduled reports whether the given updateable is currently in the queue.
+func (q *UpdateQueue) IsScheduled(o Updateable) bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for _, obj := range q.objects {
+		if obj == o {
+			return true
+		}
+	}
+	return false
+}
+
 const minParallelItems = 64
 
 func (q *UpdateQueue) Execute(dt time.Duration) {

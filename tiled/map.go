@@ -1,6 +1,7 @@
 package tiled
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -30,6 +31,7 @@ func (l *Layer) Draw(dst *ebiten.Image, sx, sy float64) {
 			l.Opacity)
 	}
 }
+
 // GameMap is a parsed Tiled map with tile layers, collision boxes and
 // interaction zones. All world coordinates and dimensions are multiplied by
 // the map's scale factor.
@@ -93,6 +95,38 @@ func (m *GameMap) Point(name string) (Point, bool) {
 func (m *GameMap) Spec() *gotiled.Map {
 	return m.spec
 }
+
+// mapProperties returns the map-level custom properties, or nil if none.
+func (m *GameMap) mapProperties() gotiled.Properties {
+	if m.spec == nil || m.spec.Properties == nil {
+		return nil
+	}
+	return *m.spec.Properties
+}
+
+// PropertyFloat returns the float map property with the given name. Both float-
+// and int-typed properties are accepted; a value that cannot be parsed yields
+// def. The lookup is case-sensitive to match Tiled.
+func (m *GameMap) PropertyFloat(name string, def float64) float64 {
+	props := m.mapProperties()
+	p := props.Get(name)
+	if p == nil {
+		return def
+	}
+	switch p.Type {
+	case "float", "int", "":
+		if v, err := strconv.ParseFloat(p.Value, 64); err == nil {
+			return v
+		}
+	}
+	return def
+}
+
+// MinZoom returns the map's "min_zoom" property (default 1).
+func (m *GameMap) MinZoom() float64 { return m.PropertyFloat("min_zoom", 1) }
+
+// MaxZoom returns the map's "max_zoom" property (default 1).
+func (m *GameMap) MaxZoom() float64 { return m.PropertyFloat("max_zoom", 1) }
 
 // DrawLayers draws all visible tile layers onto dst, offset by (ox, oy).
 func (m *GameMap) DrawLayers(dst *ebiten.Image, ox, oy float64) {

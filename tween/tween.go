@@ -20,10 +20,11 @@ type Vec2 struct {
 }
 
 type Tween[T any] struct {
-	from   T
-	to     T
-	setter func(T)
-	lerp   func(from, to T, t float64) T
+	from    T
+	to      T
+	current T
+	setter  func(T)
+	lerp    func(from, to T, t float64) T
 
 	duration     time.Duration
 	elapsed      time.Duration
@@ -45,7 +46,7 @@ type Tween[T any] struct {
 
 func New[T any](from, to T, duration time.Duration, setter func(T), lerp func(T, T, float64) T) *Tween[T] {
 	return &Tween[T]{
-		from: from, to: to, duration: duration,
+		from: from, to: to, current: from, duration: duration,
 		setter: setter, lerp: lerp,
 		easing: Linear, mode: ModeOnce, forward: true,
 	}
@@ -83,9 +84,62 @@ func (t *Tween[T]) Delay(d time.Duration) *Tween[T] {
 	return t
 }
 
+// SetDuration overrides the tween length; used when reviving a follow tween
+// with a fresh duration.
+func (t *Tween[T]) SetDuration(d time.Duration) *Tween[T] {
+	t.duration = d
+	return t
+}
+
 func (t *Tween[T]) OnComplete(fn func()) *Tween[T] {
 	t.onComplete = fn
 	return t
+}
+
+// Schedule adds the tween to the default update queue if it is not already
+// there. Calling it repeatedly is safe.
+func (t *Tween[T]) Schedule() *Tween[T] {
+	if !queues.DefaultUpdateQueue.IsScheduled(t) {
+		queues.DefaultUpdateQueue.Schedule(t)
+	}
+	return t
+}
+
+// Value returns the tween's most recently applied value.
+func (t *Tween[T]) Value() T {
+	return t.current
+}
+
+// Stop halts a tween and removes it from the default update queue without
+// firing its completion callback.
+func Stop[T any](t *Tween[T]) {
+	if t == nil {
+		return
+	}
+	t.done = true
+	queues.DefaultUpdateQueue.Unschedule(t)
+}
+
+// Retarget redirects a running (or finished) tween toward a new destination,
+// restarting from its current value. It is meant for follow-style tweens whose
+// target moves every frame (e.g. a camera chasing a player). Retargeting a
+// finished tween revives it and re-schedules it on the default queue.
+func (t *Tween[T]) Retarget(to T) {
+	t.from = t.current
+	t.to = to
+	t.elapsed = 0
+	t.forward = true
+	if t.done {
+		t.done = false
+		t.repeated = 0
+		t.started = false
+		t.Schedule()
+	}
+}
+
+func (t *Tween[T]) apply(v T) {
+	t.current = v
+	t.setter(v)
 }
 
 func (t *Tween[T]) Update(dt time.Duration) {
@@ -96,7 +150,7 @@ func (t *Tween[T]) Update(dt time.Duration) {
 	if !t.started {
 		t.started = true
 		t.elapsed = 0
-		t.setter(t.from)
+		t.apply(t.from)
 	}
 
 	if t.delayElapsed < t.delay {
@@ -113,9 +167,9 @@ func (t *Tween[T]) Update(dt time.Duration) {
 	eased := t.easing(p)
 
 	if t.forward {
-		t.setter(t.lerp(t.from, t.to, eased))
+		t.apply(t.lerp(t.from, t.to, eased))
 	} else {
-		t.setter(t.lerp(t.from, t.to, 1-eased))
+		t.apply(t.lerp(t.from, t.to, 1-eased))
 	}
 
 	if p >= 1.0 {
