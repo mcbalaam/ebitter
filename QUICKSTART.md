@@ -277,15 +277,17 @@ events.MasterSignalBus.Subscribe("open_door", player, func(s events.Signal) {
 ## 7. Camera
 
 `engine.Camera` is a world-coordinate camera: `X, Y` is the world point shown
-at the center of the screen, `Zoom` scales the view. Render the world inside
-`Apply`; it takes care of panning, clamping to the map bounds and nearest-
-neighbour zooming:
+at the center of the screen — the camera's source of truth, kept clamped so it
+always *is* the on-screen center — and `Zoom` scales the view. Render the world
+inside `Apply`; it takes care of panning, zooming (nearest-neighbour) and
+keeping its own viewport in sync:
 
 ```go
 import "github.com/mcbalaam/ebitter/engine"
 
 cam := engine.NewCamera()
-cam.SetBounds(float64(m.Width()), float64(m.Height())) // keep the viewport on the map
+cam.SetBounds(float64(m.Width()), float64(m.Height())) // clamp the center to the map
+cam.SetViewport(640, 480)                              // screen size; Apply refreshes it from the target
 cam.SetZoomLimits(m.MinZoom(), m.MaxZoom())            // map float properties min_zoom / max_zoom
 
 func (s *playScene) Update(dt time.Duration) {
@@ -309,12 +311,11 @@ func (s *playScene) Draw(screen *ebiten.Image) {
 - Zoom snaps by default. `cam.SetZoomLimits(min, max)` restricts it, and maps
   can carry the limits themselves as float properties `min_zoom` / `max_zoom`,
   read via `m.MinZoom()` / `m.MaxZoom()`. If zooming out makes the viewport
-  larger than the map, the map is centered instead of clamped.
+  larger than the map, the center pins to the map midpoint.
 - `cam.SetSmooth(true)` makes every `CenterOn` and `SetZoom` transition run
   through a tween (durations: `FollowDuration`, `ZoomDuration`). This requires
   `queues.DefaultUpdateQueue` to be executed each frame.
-- The demo showcases smooth follow on key `W`; the on-screen hint turns yellow
-  while it is active.
+- The demo showcases smooth follow on key `3`.
 
 ## Putting it together
 

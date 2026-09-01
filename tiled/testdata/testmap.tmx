@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.10" orientation="orthogonal" renderorder="right-down" width="10" height="8" tilewidth="16" tileheight="16" infinite="0">
+ <properties>
+  <property name="min_zoom" type="float" value="0.5"/>
+  <property name="max_zoom" type="float" value="4"/>
+ </properties>
  <tileset firstgid="1" source="testtiles.tsx"/>
  <layer id="1" name="ground" width="10" height="8">
   <data encoding="csv">

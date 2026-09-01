@@ -18,6 +18,38 @@ func setupFS(t *testing.T) {
 // and must not be used from tests.
 const testMapPath = "tiled/testdata/testmap.tmx"
 
+func TestMapPropertyFloat(t *testing.T) {
+	setupFS(t)
+	m, err := LoadMapSpec(testMapPath, NewTilesetCache())
+	if err != nil {
+		t.Fatalf("load map: %v", err)
+	}
+	if m.MinZoom() != 0.5 {
+		t.Errorf("MinZoom() = %v, want 0.5", m.MinZoom())
+	}
+	if m.MaxZoom() != 4 {
+		t.Errorf("MaxZoom() = %v, want 4", m.MaxZoom())
+	}
+	if got := m.PropertyFloat("absent", 1.5); got != 1.5 {
+		t.Errorf("PropertyFloat(absent, 1.5) = %v, want 1.5 default", got)
+	}
+
+	// int-typed properties parse, and non-numeric float values fall back.
+	spec := &gotiled.Map{
+		Properties: &gotiled.Properties{
+			{Name: "count", Type: "int", Value: "7"},
+			{Name: "broken", Type: "float", Value: "nope"},
+		},
+	}
+	mm := &GameMap{spec: spec}
+	if got := mm.PropertyFloat("count", -1); got != 7 {
+		t.Errorf("int property = %v, want 7", got)
+	}
+	if got := mm.PropertyFloat("broken", -1); got != -1 {
+		t.Errorf("unparseable property = %v, want -1 default", got)
+	}
+}
+
 func TestLoadMapSpec(t *testing.T) {
 	setupFS(t)
 
