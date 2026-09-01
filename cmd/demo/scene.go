@@ -16,12 +16,13 @@ import (
 )
 
 type demoScene struct {
-	Map           *tiled.GameMap
-	Camera        *engine.Camera
-	BgColor       color.Color
-	ShowColliders bool
-	ShowZones     bool
-	ShowCamArrow  bool
+	Map            *tiled.GameMap
+	Camera         *engine.Camera
+	BgColor        color.Color
+	ShowColliders  bool
+	ShowZones      bool
+	ShowCamArrow   bool
+	ShowStateLabel bool
 
 	input         *engine.Input
 	player        *tiled.ColliderBox
@@ -34,13 +35,17 @@ type demoScene struct {
 	hintColliders *text.TextString
 	hintZones     *text.TextString
 	hintArrow     *text.TextString
+	hintLabel     *text.TextString
+	stateLabel    *text.TextString
+	lastState     string
 }
 
 const (
+	hudHintFollow    = "3 to toggle smooth camera"
 	hudHintColliders = "1 to toggle hitboxes"
 	hudHintZones     = "2 to toggle interaction zones"
-	hudHintFollow    = "3 to toggle smooth camera"
 	hudHintArrow     = "4 to toggle camera debug"
+	hudHintLabel     = "5 to toggle state label"
 )
 
 var hudHintColor = color.RGBA{0xff, 0xff, 0xff, 0xff}
@@ -101,6 +106,18 @@ func NewDemoScene(mapPath string, mapScale float64) (*demoScene, error) {
 	hs4 := hudStyle()
 	s.hintArrow = text.NewTextString(hudHintArrow, 20, 60, hs4)
 	s.hintArrow.Show()
+	hs5 := hudStyle()
+	s.hintLabel = text.NewTextString(hudHintLabel, 20, 80, hs5)
+	s.hintLabel.Show()
+
+	s.stateLabel = text.NewTextString("down", 0, 0, text.TextStyle{
+		FontName:    "mars",
+		ScaleX:      0.2,
+		ScaleY:      0.2,
+		FontHeight:  179,
+		LineSpacing: 4,
+		Color:       color.White,
+	})
 
 	return s, nil
 }
@@ -154,6 +171,10 @@ func (s *demoScene) Update(dt time.Duration) {
 		s.ShowCamArrow = !s.ShowCamArrow
 		s.setHintColor(s.hintArrow, s.ShowCamArrow)
 	}
+	if s.input.JustPressed(ebiten.Key5) {
+		s.ShowStateLabel = !s.ShowStateLabel
+		s.setHintColor(s.hintLabel, s.ShowStateLabel)
+	}
 	if s.input.JustPressed(ebiten.Key3) {
 		s.setSmoothFollow(!s.Camera.Smooth())
 	}
@@ -183,6 +204,10 @@ func (s *demoScene) Update(dt time.Duration) {
 		}
 		_ = s.sprite.SetIconState(state)
 		s.sprite.Update(dt)
+		if state != s.lastState {
+			s.lastState = state
+			s.stateLabel.SetText(state)
+		}
 	}
 
 	if s.input.JustPressed(ebiten.KeyZ) || s.input.JustPressed(ebiten.KeyEnter) {
@@ -300,6 +325,11 @@ func (s *demoScene) Draw(screen *ebiten.Image) {
 			vector.DrawFilledRect(target,
 				float32(b.X+sx), float32(b.Y+sy), float32(b.W), float32(b.H),
 				s.color, true)
+		}
+
+		if s.ShowStateLabel && s.stateLabel != nil {
+			s.stateLabel.SetPosition(b.X+b.W+6+sx, b.Y-50+sy)
+			s.stateLabel.Draw(target)
 		}
 
 		if s.ShowZones {
