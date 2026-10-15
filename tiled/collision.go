@@ -1,8 +1,6 @@
 package tiled
 
 import (
-	"strings"
-
 	gotiled "github.com/lafriks/go-tiled"
 )
 
@@ -65,12 +63,12 @@ func resolveCollisions(box *ColliderBox, solids []*ColliderBox) (float64, float6
 }
 
 // collectColliders builds static collision boxes from Tiled object groups.
-// A group contributes its objects when its name or class contains "collision"
-// or it has a boolean "collision" property set to true.
-func collectColliders(groups []*gotiled.ObjectGroup) []*ColliderBox {
+// A group contributes its objects when its name or class matches one of the
+// schema's collision keywords, or it has the collision boolean property set.
+func collectColliders(groups []*gotiled.ObjectGroup, schema Schema) []*ColliderBox {
 	var out []*ColliderBox
 	for _, g := range groups {
-		if !groupCollides(g) {
+		if !groupCollides(g, schema) {
 			continue
 		}
 		for _, obj := range g.Objects {
@@ -89,17 +87,12 @@ func collectColliders(groups []*gotiled.ObjectGroup) []*ColliderBox {
 }
 
 // groupCollides reports whether an object group is a collision layer.
-// A group matches when its name or class contains "collision" or "hitbox",
-// or it has a boolean "collision" property set to true.
-func groupCollides(g *gotiled.ObjectGroup) bool {
+func groupCollides(g *gotiled.ObjectGroup, schema Schema) bool {
 	if g == nil {
 		return false
 	}
-	name := strings.ToLower(g.Name)
-	class := strings.ToLower(g.Class)
-	if strings.Contains(name, "collision") || strings.Contains(name, "hitbox") ||
-		strings.Contains(class, "collision") || strings.Contains(class, "hitbox") {
+	if schema.hasKeyword(schema.CollisionKeywords, g.Name, g.Class) {
 		return true
 	}
-	return g.Properties.GetBool("collision")
+	return g.Properties.GetBool(schema.CollisionProperty)
 }

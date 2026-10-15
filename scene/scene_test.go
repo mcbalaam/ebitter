@@ -12,8 +12,8 @@ type dummyScene struct {
 	updates int
 }
 
-func (d *dummyScene) Update(time.Duration)  { d.updates++ }
-func (d *dummyScene) Draw(*ebiten.Image)    {}
+func (d *dummyScene) Update(time.Duration) { d.updates++ }
+func (d *dummyScene) Draw(*ebiten.Image)   {}
 
 const testFade = 100 * time.Millisecond
 

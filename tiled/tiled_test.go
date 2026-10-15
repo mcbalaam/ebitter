@@ -216,7 +216,7 @@ func TestCollectCollidersFromProperties(t *testing.T) {
 	g.Properties = gotiled.Properties{
 		{Name: "collision", Type: "boolean", Value: "true"},
 	}
-	boxes := collectColliders([]*gotiled.ObjectGroup{g})
+	boxes := collectColliders([]*gotiled.ObjectGroup{g}, DefaultSchema())
 	if len(boxes) != 1 {
 		t.Fatalf("collectColliders = %d, want 1", len(boxes))
 	}
@@ -227,7 +227,7 @@ func TestCollectCollidersFromProperties(t *testing.T) {
 
 	// Non-rectangle / zero-size objects are skipped.
 	ellipseG := &gotiled.ObjectGroup{Name: "deco"}
-	boxes = collectColliders([]*gotiled.ObjectGroup{ellipseG})
+	boxes = collectColliders([]*gotiled.ObjectGroup{ellipseG}, DefaultSchema())
 	if len(boxes) != 0 {
 		t.Errorf("collectColliders(deco) = %d, want 0", len(boxes))
 	}

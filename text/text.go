@@ -3,12 +3,22 @@ package text
 import (
 	"image/color"
 	"math"
+	"math/rand"
+	"path"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/mcbalaam/ebitter/queues"
 	"github.com/mcbalaam/ebitter/render"
 	"github.com/mcbalaam/ebitter/sound"
+)
+
+var (
+	// FontRoot is the assetfs directory fonts are loaded from. Each font is a
+	// subdirectory in Aseprite format; override for a different layout.
+	FontRoot = "media/sprites"
+	// Filter is the draw filter used for glyphs and baked text strings.
+	Filter = ebiten.FilterNearest
 )
 
 type Glyph struct {
@@ -23,7 +33,7 @@ type Glyph struct {
 
 func (g *Glyph) Draw(s *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{}
-	op.Filter = ebiten.FilterNearest
+	op.Filter = Filter
 
 	op.GeoM.Scale(g.ScaleX, g.ScaleY)
 	op.GeoM.Rotate(g.Tilt)
@@ -36,18 +46,25 @@ func (g *Glyph) Draw(s *ebiten.Image) {
 }
 
 type TextDisplay struct {
-	textStr     *TextString
-	Commands    []DialogueCommand
-	CmdIndex    int
-	Displayed   []*Glyph
-	IsComplete  bool
-	OnComplete  func()
-	CharSound   string
-	SoundPlayer *sound.SoundPlayer
-	elapsed     float64
-	waiting     bool
-	skipSound   bool
-	revealedAll bool
+	textStr    *TextString
+	Commands   []DialogueCommand
+	CmdIndex   int
+	Displayed  []*Glyph
+	IsComplete bool
+	OnComplete func()
+	CharSound  string
+	// CharSoundVolume is the playback volume of CharSound. Values <= 0 use 0.5.
+	CharSoundVolume float64
+	// CharPitchMin/Max bound a random pitch multiplier applied to each
+	// character sound. When CharPitchMax <= CharPitchMin (or Min <= 0) the
+	// sound plays at its original pitch.
+	CharPitchMin float64
+	CharPitchMax float64
+	SoundPlayer  *sound.SoundPlayer
+	elapsed      float64
+	waiting      bool
+	skipSound    bool
+	revealedAll  bool
 }
 
 // NewTextDisplay parses text into a timed reveal command list and schedules
@@ -95,7 +112,7 @@ func loadFont(fontName string) *render.AnimatedIcon {
 	if cached, ok := textStringFontCache.Load(fontName); ok {
 		return cached.(*render.AnimatedIcon)
 	}
-	icon, err := render.NewAnimatedIconFromPath("media/sprites/"+fontName, " ")
+	icon, err := render.NewAnimatedIconFromPath(path.Join(FontRoot, fontName), " ")
 	if err != nil {
 		return nil
 	}
@@ -118,9 +135,24 @@ func (t *TextDisplay) skipAll() {
 	t.Advance()
 }
 
+// playCharSound plays the per-character typing sound, optionally with a random
+// pitch in [CharPitchMin, CharPitchMax].
+func (t *TextDisplay) playCharSound() {
+	volume := t.CharSoundVolume
+	if volume <= 0 {
+		volume = 0.5
+	}
+	if t.CharPitchMin > 0 && t.CharPitchMax > t.CharPitchMin {
+		pitch := t.CharPitchMin + rand.Float64()*(t.CharPitchMax-t.CharPitchMin)
+		_ = t.SoundPlayer.PlayVariable(t.CharSound, volume, pitch)
+		return
+	}
+	_ = t.SoundPlayer.PlaySound(t.CharSound, volume)
+}
+
 func (t *TextDisplay) revealChar(cmd DialogueCommand) {
 	if !t.skipSound && t.CharSound != "" && t.SoundPlayer != nil {
-		t.SoundPlayer.PlaySound(t.CharSound, 0.5)
+		t.playCharSound()
 	}
 	font := loadFont(t.textStr.Style.FontName)
 	if font == nil {

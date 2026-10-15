@@ -29,19 +29,21 @@ func (g *SpatialGrid) cellKey(x, y float64) [2]int {
 }
 
 func (g *SpatialGrid) Insert(e *components.Entity) {
-	if e.Transform == nil {
+	t := e.Transform()
+	if t == nil {
 		return
 	}
-	key := g.cellKey(e.Transform.X, e.Transform.Y)
+	key := g.cellKey(t.X, t.Y)
 	g.cells[key] = append(g.cells[key], e)
 }
 
 func (g *SpatialGrid) Query(e *components.Entity) []*components.Entity {
-	if e.Transform == nil {
+	t := e.Transform()
+	if t == nil {
 		return nil
 	}
 
-	key := g.cellKey(e.Transform.X, e.Transform.Y)
+	key := g.cellKey(t.X, t.Y)
 	seen := make(map[*components.Entity]struct{})
 	var result []*components.Entity
 

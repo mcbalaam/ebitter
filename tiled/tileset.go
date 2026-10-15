@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
+	"io/fs"
 	"path/filepath"
 	"sync"
 
@@ -53,6 +54,9 @@ type TilesetCache struct {
 	mu     sync.Mutex
 	byID   map[*gotiled.Tileset]*TilesetAsset
 	byPath map[string]*TilesetAsset
+	// FS is the filesystem tileset images and maps are read from. Nil falls
+	// back to assetfs.FS.
+	FS fs.FS
 }
 
 // NewTilesetCache creates an empty cache.
@@ -65,6 +69,13 @@ func NewTilesetCache() *TilesetCache {
 
 // DefaultTilesetCache is the shared tileset cache used by LoadMap.
 var DefaultTilesetCache = NewTilesetCache()
+
+func (c *TilesetCache) fsys() fs.FS {
+	if c != nil && c.FS != nil {
+		return c.FS
+	}
+	return assetfs.FS
+}
 
 // Asset returns the cached asset for a tileset or loads it from disk/embed.
 func (c *TilesetCache) Asset(ts *gotiled.Tileset) (*TilesetAsset, error) {
@@ -88,7 +99,7 @@ func (c *TilesetCache) Asset(ts *gotiled.Tileset) (*TilesetAsset, error) {
 		return a, nil
 	}
 
-	f, err := assetfs.FS.Open(src)
+	f, err := c.fsys().Open(src)
 	if err != nil {
 		return nil, fmt.Errorf("tiled: open tileset image %s: %w", src, err)
 	}

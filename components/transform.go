@@ -1,5 +1,6 @@
 package components
 
+// Transform places a component in the world. ScaleX/ScaleY default to 1.
 type Transform struct {
 	X        float64
 	Y        float64
@@ -7,6 +8,8 @@ type Transform struct {
 	ScaleY   float64
 	Rotation float64
 }
+
+func (t *Transform) Type() string { return "transform" }
 
 func (t *Transform) Move(dx, dy float64) {
 	t.X += dx

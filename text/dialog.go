@@ -14,6 +14,14 @@ type DialogManager struct {
 	ShowAllChecker func() bool
 	AdvanceChecker func() bool
 	SoundPlayer    *sound.SoundPlayer
+
+	// CharSoundVolume is the volume of each character's typing sound; <= 0
+	// uses 0.5. CharPitchMin/Max optionally bound a random pitch multiplier
+	// applied per character (e.g. 0.9 and 1.2 for subtle variation); when
+	// CharPitchMax <= CharPitchMin the sound plays at its original pitch.
+	CharSoundVolume float64
+	CharPitchMin    float64
+	CharPitchMax    float64
 }
 
 type dialogRequest struct {
@@ -98,6 +106,9 @@ func (dm *DialogManager) start(text string, style TextStyle, charSound string) {
 		return
 	}
 	td.CharSound = charSound
+	td.CharSoundVolume = dm.CharSoundVolume
+	td.CharPitchMin = dm.CharPitchMin
+	td.CharPitchMax = dm.CharPitchMax
 	td.SoundPlayer = dm.SoundPlayer
 	dm.active = td
 }

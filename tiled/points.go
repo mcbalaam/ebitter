@@ -14,8 +14,9 @@ type Point struct {
 
 // collectPoints gathers named point objects (zero-size marker objects such as
 // Tiled point objects) from all object groups, keyed by lower-cased name.
-// Coordinates are scaled by the map's scale factor.
-func collectPoints(groups []*gotiled.ObjectGroup, scale float64) map[string]Point {
+// Coordinates are scaled by the map's scale factor. Objects that place an
+// entity (carrying the blueprint property) are skipped — they are spawns.
+func collectPoints(groups []*gotiled.ObjectGroup, scale float64, schema Schema) map[string]Point {
 	out := map[string]Point{}
 	for _, g := range groups {
 		if g == nil {
@@ -25,9 +26,12 @@ func collectPoints(groups []*gotiled.ObjectGroup, scale float64) map[string]Poin
 			if !isPointObject(obj) {
 				continue
 			}
+			if obj.Properties.GetString(schema.BlueprintProperty) != "" {
+				continue
+			}
 			name := obj.Name
 			if name == "" {
-				name = obj.Properties.GetString("name")
+				name = obj.Properties.GetString(schema.NameProperty)
 			}
 			if name == "" {
 				continue

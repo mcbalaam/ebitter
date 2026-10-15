@@ -8,9 +8,10 @@ import (
 	"github.com/mcbalaam/ebitter/assetfs"
 )
 
-// LoadMap parses a Tiled .tmx file from the embedded filesystem and builds a
+// LoadMap parses a Tiled .tmx file from the asset filesystem and builds a
 // GameMap with pre-rendered layers, collision boxes and interaction zones.
-// The path is relative to the embedded media root, e.g. "media/maps/demo.tmx".
+// The path is relative to the asset root, e.g. "media/maps/demo.tmx". It uses
+// the default tileset cache and schema.
 func LoadMap(path string) (*GameMap, error) {
 	return LoadMapScaled(path, 1)
 }
@@ -18,11 +19,16 @@ func LoadMap(path string) (*GameMap, error) {
 // LoadMapScaled is LoadMap with the whole world (tiles, colliders, interaction
 // zones and map dimensions) scaled by the given factor.
 func LoadMapScaled(path string, scale float64) (*GameMap, error) {
-	m, err := LoadMapSpecScaled(path, DefaultTilesetCache, scale)
+	return LoadMapScaledWith(path, DefaultTilesetCache, scale, DefaultSchema())
+}
+
+// LoadMapScaledWith is LoadMapScaled with an explicit tileset cache and schema.
+func LoadMapScaledWith(path string, cache *TilesetCache, scale float64, schema Schema) (*GameMap, error) {
+	m, err := LoadMapSpecScaledWith(path, cache, scale, schema)
 	if err != nil {
 		return nil, err
 	}
-	if err := m.BuildLayers(DefaultTilesetCache); err != nil {
+	if err := m.BuildLayers(cache); err != nil {
 		return nil, err
 	}
 	return m, nil
@@ -32,15 +38,24 @@ func LoadMapScaled(path string, scale float64) (*GameMap, error) {
 // Use this when only the logical contents (collision, interactions, layer
 // metadata) are needed.
 func LoadMapSpec(path string, cache *TilesetCache) (*GameMap, error) {
-	return LoadMapSpecScaled(path, cache, 1)
+	return LoadMapSpecScaledWith(path, cache, 1, DefaultSchema())
 }
 
 // LoadMapSpecScaled is LoadMapSpec with the world scaled by the given factor.
 func LoadMapSpecScaled(path string, cache *TilesetCache, scale float64) (*GameMap, error) {
+	return LoadMapSpecScaledWith(path, cache, scale, DefaultSchema())
+}
+
+// LoadMapSpecScaledWith is LoadMapSpecScaled with an explicit map schema.
+func LoadMapSpecScaledWith(path string, cache *TilesetCache, scale float64, schema Schema) (*GameMap, error) {
 	if scale <= 0 {
 		scale = 1
 	}
-	spec, err := gotiled.LoadFile(filepath.ToSlash(path), gotiled.WithFileSystem(assetfs.FS))
+	fsys := assetfs.FS
+	if cache != nil {
+		fsys = cache.fsys()
+	}
+	spec, err := gotiled.LoadFile(filepath.ToSlash(path), gotiled.WithFileSystem(fsys))
 	if err != nil {
 		return nil, fmt.Errorf("tiled: load map %s: %w", path, err)
 	}
@@ -50,9 +65,11 @@ func LoadMapSpecScaled(path string, cache *TilesetCache, scale float64) (*GameMa
 	return &GameMap{
 		spec:         spec,
 		scale:        scale,
-		colliders:    scaleColliders(collectColliders(spec.ObjectGroups), scale),
-		interactions: scaleInteractions(collectInteractions(spec.ObjectGroups), scale),
-		points:       collectPoints(spec.ObjectGroups, scale),
+		schema:       schema,
+		colliders:    scaleColliders(collectColliders(spec.ObjectGroups, schema), scale),
+		interactions: scaleInteractions(collectInteractions(spec.ObjectGroups, schema), scale),
+		points:       collectPoints(spec.ObjectGroups, scale, schema),
+		spawns:       collectSpawns(spec.ObjectGroups, scale, schema),
 	}, nil
 }
 

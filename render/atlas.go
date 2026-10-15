@@ -27,17 +27,28 @@ type AtlasManager struct {
 	mu             sync.RWMutex
 	IconStateCache map[string]IconState
 	processed      map[string]bool
-	BasePath       string
+	dirIcons       map[string][]string
+	// FS is the filesystem icons are read from. Nil falls back to assetfs.FS.
+	FS fs.FS
 }
 
 // The main atlas manager instance.
 var MasterAtlasManager = &AtlasManager{
 	IconStateCache: map[string]IconState{},
 	processed:      map[string]bool{},
-	BasePath:       "media/sprites",
+	dirIcons:       map[string][]string{},
 }
 
-// Parses an Aseprite format .json file, reads the .png spritesheet from the provided directory and cuts it. Caches the result.
+func (m *AtlasManager) fsys() fs.FS {
+	if m.FS != nil {
+		return m.FS
+	}
+	return assetfs.FS
+}
+
+// CacheIconStates parses every Aseprite .json/.png pair in dir, cuts the
+// spritesheets and caches the resulting icon states. Re-scanning a directory is
+// skipped once processed.
 func (m *AtlasManager) CacheIconStates(dir string) error {
 	m.mu.RLock()
 	done := m.processed[dir]
@@ -46,11 +57,12 @@ func (m *AtlasManager) CacheIconStates(dir string) error {
 		return nil
 	}
 
-	entries, err := fs.ReadDir(assetfs.FS, dir)
+	entries, err := fs.ReadDir(m.fsys(), dir)
 	if err != nil {
 		return err
 	}
 
+	var names []string
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
@@ -61,7 +73,7 @@ func (m *AtlasManager) CacheIconStates(dir string) error {
 		}
 
 		jsonPath := path.Join(dir, name)
-		b, err := fs.ReadFile(assetfs.FS, jsonPath)
+		b, err := fs.ReadFile(m.fsys(), jsonPath)
 		if err != nil {
 			return err
 		}
@@ -73,11 +85,11 @@ func (m *AtlasManager) CacheIconStates(dir string) error {
 
 		base := strings.TrimSuffix(name, path.Ext(name))
 		pngPath := path.Join(dir, base+".png")
-		if _, err := fs.Stat(assetfs.FS, pngPath); err != nil {
+		if _, err := fs.Stat(m.fsys(), pngPath); err != nil {
 			continue
 		}
 
-		f, err := assetfs.FS.Open(pngPath)
+		f, err := m.fsys().Open(pngPath)
 		if err != nil {
 			return fmt.Errorf("open png %s: %w", pngPath, err)
 		}
@@ -97,9 +109,15 @@ func (m *AtlasManager) CacheIconStates(dir string) error {
 		for _, st := range iconStates {
 			m.IconStateCache[base+"/"+st.Name] = st
 		}
-		m.processed[dir] = true
 		m.mu.Unlock()
+
+		names = append(names, base)
 	}
+
+	m.mu.Lock()
+	m.dirIcons[dir] = names
+	m.processed[dir] = true
+	m.mu.Unlock()
 
 	return nil
 }
@@ -139,22 +157,10 @@ func (m *AtlasManager) CutAtlas(r io.Reader, meta AtlasMeta) ([]IconState, error
 			frames = append(frames, frm)
 		}
 
-		var mode AnimationMode
-		switch strings.ToLower(s.Mode) {
-		case "forward", "normal", "fwd":
-			mode = AnimationModeLoop
-		case "reverse", "backward", "rev":
-			mode = AnimationModeLoop
-		case "pingpong", "ping-pong":
-			mode = AnimationModePingPong
-		default:
-			mode = AnimationModeOnce
-		}
-
 		iconState := IconState{
 			Name:   s.Name,
 			Frames: frames,
-			Mode:   mode,
+			Mode:   animationModeFromAseprite(s.Mode),
 		}
 		if len(frames) > 0 {
 			iconState.CurrentFrame = 0
@@ -164,6 +170,70 @@ func (m *AtlasManager) CutAtlas(r io.Reader, meta AtlasMeta) ([]IconState, error
 	}
 
 	return states, nil
+}
+
+// AnimatedIcon builds an icon from the assets in dir, starting in stateKey.
+// Icon names are tracked per directory, so the directory name need not match
+// the .json/.png basename.
+func (m *AtlasManager) AnimatedIcon(dir string, stateKey string) (*AnimatedIcon, error) {
+	if err := m.CacheIconStates(dir); err != nil {
+		return nil, fmt.Errorf("cache icon states: %w", err)
+	}
+
+	m.mu.RLock()
+	names := m.dirIcons[dir]
+	nameSet := make(map[string]struct{}, len(names))
+	for _, n := range names {
+		nameSet[n] = struct{}{}
+	}
+	iconStates := make(map[string]*IconState)
+	for k, v := range m.IconStateCache {
+		name, state, ok := strings.Cut(k, "/")
+		if !ok {
+			continue
+		}
+		if _, ok := nameSet[name]; !ok {
+			continue
+		}
+		st := v
+		iconStates[state] = &st
+	}
+	m.mu.RUnlock()
+
+	initial, ok := iconStates[stateKey]
+	if !ok {
+		return nil, fmt.Errorf("get icon state %q: not found", stateKey)
+	}
+	if len(initial.Frames) == 0 {
+		return nil, fmt.Errorf("icon state %q: no frames", stateKey)
+	}
+
+	initial.CurrentFrame = initialFrame(initial.Mode, len(initial.Frames))
+	initial.CurrentFrameRef = &initial.Frames[initial.CurrentFrame]
+	initial.elapsed = 0
+	initial.dir = initialDir(initial.Mode)
+
+	return &AnimatedIcon{
+		CurrentState: initial,
+		IconStates:   iconStates,
+	}, nil
+}
+
+// initialDir returns the starting ping-pong direction for a mode.
+func initialDir(mode AnimationMode) int {
+	if mode == AnimationModePingPongReverse {
+		return -1
+	}
+	return 1
+}
+
+// initialFrame returns the frame a state starts on: the last frame for a
+// reverse ping-pong (which plays backward first), the first otherwise.
+func initialFrame(mode AnimationMode, n int) int {
+	if mode == AnimationModePingPongReverse && n > 0 {
+		return n - 1
+	}
+	return 0
 }
 
 // GetIconState returns a cached icon state by compound key "iconName/iconState".

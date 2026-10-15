@@ -1,8 +1,6 @@
 package tiled
 
 import (
-	"strings"
-
 	gotiled "github.com/lafriks/go-tiled"
 	"github.com/mcbalaam/ebitter/events"
 )
@@ -26,11 +24,15 @@ type InteractionZone struct {
 	Trigger TriggerMode
 	Rect    ColliderBox
 
+	// Bus, when set, receives the zone's signals instead of
+	// events.MasterSignalBus.
+	Bus *events.SignalBus
+
 	active bool
 }
 
 // Check evaluates the zone against the given collider. It emits the zone's
-// signal on the master signal bus when activated and reports whether it fired
+// signal on the signal bus when activated and reports whether it fired
 // this call.
 func (z *InteractionZone) Check(box *ColliderBox, interactPressed bool, source interface{}) bool {
 	if z == nil || box == nil {
@@ -63,21 +65,25 @@ func (z *InteractionZone) Check(box *ColliderBox, interactPressed bool, source i
 }
 
 func (z *InteractionZone) emit(source interface{}) bool {
-	events.MasterSignalBus.Emit(z.Signal, source, z)
+	bus := z.Bus
+	if bus == nil {
+		bus = &events.MasterSignalBus
+	}
+	bus.Emit(z.Signal, source, z)
 	return true
 }
 
 // collectInteractions builds interaction zones from Tiled object groups.
-// A group contributes its objects when its name or class contains
-// "interaction" or it has a string "interaction" property set.
-func collectInteractions(allGroups []*gotiled.ObjectGroup) []*InteractionZone {
+// A group contributes its objects when its name or class matches one of the
+// schema's interaction keywords; otherwise an object carrying the interaction
+// or signal property is collected.
+func collectInteractions(allGroups []*gotiled.ObjectGroup, schema Schema) []*InteractionZone {
 	var out []*InteractionZone
 	for _, g := range allGroups {
 		if g == nil {
 			continue
 		}
-		isInteraction := strings.Contains(strings.ToLower(g.Name), "interact") ||
-			strings.Contains(strings.ToLower(g.Class), "interact")
+		isInteraction := schema.hasKeyword(schema.InteractionKeywords, g.Name, g.Class)
 
 		for _, obj := range g.Objects {
 			if obj.Width <= 0 || obj.Height <= 0 {
@@ -86,7 +92,7 @@ func collectInteractions(allGroups []*gotiled.ObjectGroup) []*InteractionZone {
 
 			zone := &InteractionZone{
 				Name:   obj.Name,
-				Signal: obj.Properties.GetString("signal"),
+				Signal: obj.Properties.GetString(schema.SignalProperty),
 				Rect: ColliderBox{
 					X: obj.X,
 					Y: obj.Y,
@@ -96,7 +102,7 @@ func collectInteractions(allGroups []*gotiled.ObjectGroup) []*InteractionZone {
 			}
 
 			if !isInteraction {
-				interact := obj.Properties.GetString("interaction")
+				interact := obj.Properties.GetString(schema.InteractionProperty)
 				if interact == "" && zone.Signal == "" {
 					continue
 				}
@@ -104,23 +110,22 @@ func collectInteractions(allGroups []*gotiled.ObjectGroup) []*InteractionZone {
 					zone.Name = interact
 				}
 			}
-		if zone.Name == "" {
-			zone.Name = obj.Properties.GetString("name")
-		}
-		if zone.Name == "" {
-			zone.Name = obj.Class
-		}
+			if zone.Name == "" {
+				zone.Name = obj.Properties.GetString(schema.NameProperty)
+			}
+			if zone.Name == "" {
+				zone.Name = obj.Class
+			}
 			if zone.Name == "" {
 				zone.Name = obj.Type
 			}
 			if zone.Signal == "" {
-				zone.Signal = "interact"
+				zone.Signal = schema.DefaultSignal
 			}
 
-			switch strings.ToLower(obj.Properties.GetString("trigger")) {
-			case "button":
+			if schema.isButtonTrigger(obj.Properties.GetString(schema.TriggerProperty)) {
 				zone.Trigger = TriggerButton
-			default:
+			} else {
 				zone.Trigger = TriggerTouch
 			}
 

@@ -1,8 +1,7 @@
 package components
 
 import (
-	"runtime"
-	"sync"
+	"sort"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -11,106 +10,239 @@ import (
 	"github.com/mcbalaam/ebitter/render"
 )
 
+type componentEntry struct {
+	c     Component
+	order int
+}
+
+// Entity is a data-driven container of components. Components are updated and
+// drawn in ascending order (ties keep insertion order). Every component
+// receives a pointer to its owning entity so it can read and write siblings.
 type Entity struct {
-	Transform *Transform
-	Velocity  *Velocity
-	Sprite    *Sprite
-	Collider  *Collider
-
+	ID    string
 	Layer int
+	Tags  []string
+	State map[string]any
+
+	// Bus, when set, is used for signals emitted by the entity (collisions,
+	// health, triggers, ...). Nil falls back to events.MasterSignalBus.
+	Bus *events.SignalBus
+
+	entries []componentEntry
+	index   map[string]Component
+	sorted  bool
 }
 
-func (e *Entity) IsParallelSafe() bool { return false }
-
-func (e *Entity) Update(dt time.Duration) {
-	if e.Velocity != nil && e.Transform != nil {
-		seconds := dt.Seconds()
-		e.Transform.X += e.Velocity.X * seconds
-		e.Transform.Y += e.Velocity.Y * seconds
-	}
-	if e.Sprite != nil {
-		e.Sprite.Update(dt)
-	}
-	if e.Collider != nil && e.Transform != nil {
-		e.Collider.UpdateWorldVerts(e.Transform)
+// NewEntity returns an entity with an empty component set.
+func NewEntity(id string) *Entity {
+	return &Entity{
+		ID:    id,
+		State: map[string]any{},
+		index: map[string]Component{},
 	}
 }
 
-func (e *Entity) Draw(s *ebiten.Image) {
-	if e.Sprite == nil || e.Transform == nil {
+// Add attaches c using its registered default order.
+func (e *Entity) Add(c Component) {
+	if c == nil {
 		return
 	}
-	e.Sprite.Icon.Draw(s, e.Transform.X, e.Transform.Y,
-		e.Transform.ScaleX, e.Transform.ScaleY, e.Transform.Rotation)
+	order := 0
+	if o, ok := DefaultOrder(c.Type()); ok {
+		order = o
+	}
+	e.AddWithOrder(c, order)
 }
 
+// AddWithOrder attaches c at an explicit order, overriding the registry default.
+func (e *Entity) AddWithOrder(c Component, order int) {
+	if c == nil {
+		return
+	}
+	if e.index == nil {
+		e.index = map[string]Component{}
+	}
+	name := c.Type()
+	if _, exists := e.index[name]; exists {
+		for i := range e.entries {
+			if e.entries[i].c.Type() == name {
+				e.entries[i] = componentEntry{c: c, order: order}
+				break
+			}
+		}
+	} else {
+		e.entries = append(e.entries, componentEntry{c: c, order: order})
+	}
+	e.index[name] = c
+	e.sorted = false
+	if init, ok := c.(Initializer); ok {
+		init.Init(e)
+	}
+}
+
+// Get returns the component registered under name, or nil.
+func (e *Entity) Get(name string) Component {
+	if e == nil || e.index == nil {
+		return nil
+	}
+	return e.index[name]
+}
+
+// Has reports whether a component is attached under name.
+func (e *Entity) Has(name string) bool { return e.Get(name) != nil }
+
+// Remove detaches the component registered under name.
+func (e *Entity) Remove(name string) {
+	if e == nil || e.index == nil {
+		return
+	}
+	if _, ok := e.index[name]; !ok {
+		return
+	}
+	delete(e.index, name)
+	for i := range e.entries {
+		if e.entries[i].c.Type() == name {
+			e.entries = append(e.entries[:i], e.entries[i+1:]...)
+			break
+		}
+	}
+	e.sorted = false
+}
+
+// Components returns the attached components in update/draw order.
+func (e *Entity) Components() []Component {
+	e.ensureSorted()
+	out := make([]Component, len(e.entries))
+	for i, en := range e.entries {
+		out[i] = en.c
+	}
+	return out
+}
+
+func (e *Entity) ensureSorted() {
+	if e == nil || e.sorted {
+		return
+	}
+	sort.SliceStable(e.entries, func(i, j int) bool {
+		return e.entries[i].order < e.entries[j].order
+	})
+	e.sorted = true
+}
+
+// Update runs every component's Update in order.
+func (e *Entity) Update(dt time.Duration) {
+	if e == nil {
+		return
+	}
+	e.ensureSorted()
+	for _, en := range e.entries {
+		if u, ok := en.c.(Updater); ok {
+			u.Update(e, dt)
+		}
+	}
+}
+
+// Draw runs every component's Draw in order.
+func (e *Entity) Draw(screen *ebiten.Image) {
+	if e == nil {
+		return
+	}
+	e.ensureSorted()
+	for _, en := range e.entries {
+		if d, ok := en.c.(Drawer); ok {
+			d.Draw(e, screen)
+		}
+	}
+}
+
+// OnSignal forwards a signal to every component implementing SignalHandler.
+func (e *Entity) OnSignal(sig events.Signal) {
+	if e == nil {
+		return
+	}
+	e.ensureSorted()
+	for _, en := range e.entries {
+		if h, ok := en.c.(SignalHandler); ok {
+			h.OnSignal(e, sig)
+		}
+	}
+}
+
+// IsParallelSafe reports that entities must be updated sequentially.
+func (e *Entity) IsParallelSafe() bool { return false }
+
+// Schedule adds the entity to the update queue and the layered draw queue.
+func (e *Entity) Schedule() {
+	queues.DefaultUpdateQueue.Schedule(e)
+	queues.DefaultQueue.ScheduleAt(e, e.Layer)
+}
+
+// signalBus returns the bus the entity emits on.
+func (e *Entity) signalBus() *events.SignalBus {
+	if e.Bus != nil {
+		return e.Bus
+	}
+	return &events.MasterSignalBus
+}
+
+// Destroy removes the entity from the queues and drops its components.
 func (e *Entity) Destroy() {
 	queues.DefaultQueue.Unschedule(e)
 	queues.DefaultUpdateQueue.Unschedule(e)
-	e.Transform = nil
-	e.Velocity = nil
-	e.Sprite = nil
-	e.Collider = nil
+	e.entries = nil
+	e.index = nil
 }
 
-const minParallelCollisions = 64
-
-type collisionPair struct {
-	self  *Entity
-	other *Entity
-}
-
+// CheckCollisionsWithList emits signalName for each other entity whose hitbox
+// intersects this entity's hitbox. Source is e, Data is the other entity.
 func (e *Entity) CheckCollisionsWithList(others []*Entity, signalName string) {
-	n := len(others)
-	if n < minParallelCollisions {
-		for _, other := range others {
-			if e.Collider != nil && other.Collider != nil {
-				if e.Collider.CollidesWith(other.Collider) {
-					events.MasterSignalBus.Emit(signalName, e, other)
-				}
-			}
-		}
+	self := e.Collider()
+	if self == nil {
 		return
 	}
-
-	numWorkers := runtime.GOMAXPROCS(0)
-	if numWorkers > n {
-		numWorkers = n
-	}
-	if numWorkers < 1 {
-		numWorkers = 1
-	}
-
-	chunkSize := n / numWorkers
-	var mu sync.Mutex
-	hits := make([]collisionPair, 0, n)
-
-	var wg sync.WaitGroup
-	for i := 0; i < numWorkers; i++ {
-		start := i * chunkSize
-		end := start + chunkSize
-		if i == numWorkers-1 {
-			end = n
+	bus := e.signalBus()
+	for _, other := range others {
+		if other == nil || other == e {
+			continue
 		}
-		wg.Add(1)
-		go func(chunk []*Entity) {
-			defer wg.Done()
-			for _, other := range chunk {
-				if e.Collider != nil && other.Collider != nil && e.Collider.CollidesWith(other.Collider) {
-					mu.Lock()
-					hits = append(hits, collisionPair{self: e, other: other})
-					mu.Unlock()
-				}
-			}
-		}(others[start:end])
-	}
-	wg.Wait()
-
-	for _, p := range hits {
-		events.MasterSignalBus.Emit(signalName, p.self, p.other)
+		oc := other.Collider()
+		if oc == nil {
+			continue
+		}
+		if self.CollidesWith(oc) {
+			bus.Emit(signalName, e, other)
+		}
 	}
 }
 
+// --- typed accessors -------------------------------------------------------
+
+func (e *Entity) Transform() *Transform { c, _ := ComponentOf[*Transform](e, "transform"); return c }
+func (e *Entity) Velocity() *Velocity   { c, _ := ComponentOf[*Velocity](e, "velocity"); return c }
+func (e *Entity) Sprite() *Sprite       { c, _ := ComponentOf[*Sprite](e, "sprite"); return c }
+func (e *Entity) Hitbox() *Hitbox       { c, _ := ComponentOf[*Hitbox](e, "hitbox"); return c }
+func (e *Entity) Body() *Body           { c, _ := ComponentOf[*Body](e, "body"); return c }
+func (e *Entity) Animator() *Animator   { c, _ := ComponentOf[*Animator](e, "animator"); return c }
+func (e *Entity) Trigger() *Trigger     { c, _ := ComponentOf[*Trigger](e, "trigger"); return c }
+
+func (e *Entity) Interactable() *Interactable {
+	c, _ := ComponentOf[*Interactable](e, "interactable")
+	return c
+}
+
+func (e *Entity) Lifetime() *Lifetime { c, _ := ComponentOf[*Lifetime](e, "lifetime"); return c }
+
+// Collider returns the entity's hitbox collider, or nil.
+func (e *Entity) Collider() *Collider {
+	h := e.Hitbox()
+	if h == nil {
+		return nil
+	}
+	return h.Collider
+}
+
+// DrawSpriteOnCollider aligns an animated icon to a transform and hitbox,
+// centering the sprite on the collider and honouring its offset.
 func DrawSpriteOnCollider(screen *ebiten.Image, icon *render.AnimatedIcon, transform *Transform, collider *Collider) {
 	if icon == nil || transform == nil || collider == nil {
 		return

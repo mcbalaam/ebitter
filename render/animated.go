@@ -96,6 +96,11 @@ func (a *AnimatedIcon) Update(dt time.Duration) {
 			if s.CurrentFrame >= len(s.Frames) {
 				s.CurrentFrame = 0
 			}
+		case AnimationModeReverse:
+			s.CurrentFrame--
+			if s.CurrentFrame < 0 {
+				s.CurrentFrame = len(s.Frames) - 1
+			}
 		case AnimationModeOnce:
 			if s.CurrentFrame < len(s.Frames)-1 {
 				s.CurrentFrame++
@@ -116,6 +121,19 @@ func (a *AnimatedIcon) Update(dt time.Duration) {
 			if s.CurrentFrame < 0 {
 				s.CurrentFrame = 1
 				s.dir = 1
+			}
+		case AnimationModePingPongReverse:
+			if s.dir == 0 {
+				s.dir = -1
+			}
+			s.CurrentFrame += s.dir
+			if s.CurrentFrame < 0 {
+				s.CurrentFrame = 1
+				s.dir = 1
+			}
+			if s.CurrentFrame >= len(s.Frames) {
+				s.CurrentFrame = len(s.Frames) - 2
+				s.dir = -1
 			}
 		default:
 			s.CurrentFrame++
@@ -162,12 +180,12 @@ func (a *AnimatedIcon) SetIconState(state string) error {
 		return nil
 	}
 
-	ns.CurrentFrame = 0
+	ns.CurrentFrame = initialFrame(ns.Mode, len(ns.Frames))
 	ns.CurrentFrameRef = &ns.Frames[ns.CurrentFrame]
 	if !ns.Continuous {
 		ns.elapsed = 0
 	}
-	ns.dir = 1
+	ns.dir = initialDir(ns.Mode)
 	a.CurrentState = ns
 
 	return nil

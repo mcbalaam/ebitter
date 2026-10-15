@@ -1,6 +1,7 @@
 package text
 
 import (
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -94,7 +95,7 @@ func (ts *TextString) ensureFont() {
 	if cached, ok := textStringFontCache.Load(fontName); ok {
 		ts.font = cached.(*render.AnimatedIcon)
 	} else {
-		font, err := render.NewAnimatedIconFromPath("media/sprites/"+fontName, " ")
+		font, err := render.NewAnimatedIconFromPath(path.Join(FontRoot, fontName), " ")
 		if err != nil {
 			return
 		}
@@ -224,7 +225,7 @@ func (ts *TextString) Draw(screen *ebiten.Image) {
 	sy := ts.Style.ScaleY
 
 	op := &ebiten.DrawImageOptions{}
-	op.Filter = ebiten.FilterNearest
+	op.Filter = Filter
 
 	w := float64(ts.image.Bounds().Dx())
 	h := float64(ts.image.Bounds().Dy())

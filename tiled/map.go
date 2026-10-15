@@ -42,6 +42,8 @@ type GameMap struct {
 	colliders    []*ColliderBox
 	interactions []*InteractionZone
 	points       map[string]Point
+	spawns       []Spawn
+	schema       Schema
 }
 
 // Scale returns the world scale factor the map was loaded with.
@@ -84,6 +86,13 @@ func (m *GameMap) Interactions() []*InteractionZone {
 	return m.interactions
 }
 
+// Spawns returns the entity placement requests read from the map (objects with
+// a "blueprint" property). The game instantiates them, e.g. through
+// components.BlueprintLibrary.Spawn.
+func (m *GameMap) Spawns() []Spawn {
+	return m.spawns
+}
+
 // Point returns the named point object (e.g. a "start" spawn marker) and
 // whether it exists. The lookup is case-insensitive.
 func (m *GameMap) Point(name string) (Point, bool) {
@@ -122,11 +131,14 @@ func (m *GameMap) PropertyFloat(name string, def float64) float64 {
 	return def
 }
 
-// MinZoom returns the map's "min_zoom" property (default 1).
-func (m *GameMap) MinZoom() float64 { return m.PropertyFloat("min_zoom", 1) }
+// MinZoom returns the map's min-zoom property (default 1).
+func (m *GameMap) MinZoom() float64 { return m.PropertyFloat(m.schema.MinZoomProperty, 1) }
 
-// MaxZoom returns the map's "max_zoom" property (default 1).
-func (m *GameMap) MaxZoom() float64 { return m.PropertyFloat("max_zoom", 1) }
+// MaxZoom returns the map's max-zoom property (default 1).
+func (m *GameMap) MaxZoom() float64 { return m.PropertyFloat(m.schema.MaxZoomProperty, 1) }
+
+// Schema returns the naming conventions the map was loaded with.
+func (m *GameMap) Schema() Schema { return m.schema }
 
 // DrawLayers draws all visible tile layers onto dst, offset by (ox, oy).
 func (m *GameMap) DrawLayers(dst *ebiten.Image, ox, oy float64) {

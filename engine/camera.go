@@ -18,8 +18,8 @@ import (
 // is animated through the tween package on the default update queue. When
 // Smooth is disabled, transitions snap instantly.
 type Camera struct {
-	X, Y   float64
-	Zoom   float64
+	X, Y float64
+	Zoom float64
 
 	worldW, worldH float64
 	sw, sh         int
@@ -28,6 +28,9 @@ type Camera struct {
 	smooth         bool
 	followDur      time.Duration
 	zoomDur        time.Duration
+
+	easing     tween.EasingFunc
+	zoomFilter ebiten.Filter
 
 	targetX, targetY float64
 	targetZoom       float64
@@ -49,7 +52,24 @@ func NewCamera() *Camera {
 		maxZoom:    1,
 		followDur:  200 * time.Millisecond,
 		zoomDur:    150 * time.Millisecond,
+		easing:     tween.EaseOutQuad,
+		zoomFilter: ebiten.FilterNearest,
 	}
+}
+
+// SetEasing sets the easing function used for smooth follow and zoom tweens.
+// A nil easing restores the default (EaseOutQuad).
+func (c *Camera) SetEasing(easing tween.EasingFunc) { c.easing = easing }
+
+// SetZoomFilter sets the filter used when upscaling the zoomed view. The
+// default is ebiten.FilterNearest (crisp pixel art).
+func (c *Camera) SetZoomFilter(filter ebiten.Filter) { c.zoomFilter = filter }
+
+func (c *Camera) ease() tween.EasingFunc {
+	if c.easing == nil {
+		return tween.EaseOutQuad
+	}
+	return c.easing
 }
 
 // SetBounds clamps the camera center to a map of worldW x worldH pixels. Pass a
@@ -119,7 +139,7 @@ func (c *Camera) CenterOn(x, y float64) {
 				tween.Vec2{X: c.targetX, Y: c.targetY},
 				c.followDur,
 				func(v tween.Vec2) { c.X, c.Y = v.X, v.Y },
-			).SetEasing(tween.EaseOutQuad).Schedule()
+			).SetEasing(c.ease()).Schedule()
 		} else {
 			c.posTween.SetDuration(c.followDur).Retarget(tween.Vec2{X: c.targetX, Y: c.targetY})
 		}
@@ -144,7 +164,7 @@ func (c *Camera) SetZoom(z float64) {
 		if c.zoomTween == nil {
 			c.zoomTween = tween.NewFloat(c.Zoom, z, c.zoomDur,
 				func(v float64) { c.Zoom = v },
-			).SetEasing(tween.EaseOutQuad).Schedule()
+			).SetEasing(c.ease()).Schedule()
 		} else {
 			c.zoomTween.SetDuration(c.zoomDur).Retarget(z)
 		}
@@ -287,7 +307,7 @@ func (c *Camera) Apply(screen *ebiten.Image, draw func(target *ebiten.Image, ox,
 	draw(c.offscreen, -tx, -ty)
 
 	op := &ebiten.DrawImageOptions{}
-	op.Filter = ebiten.FilterNearest
+	op.Filter = c.zoomFilter
 	op.GeoM.Scale(float64(sw)/float64(bw), float64(sh)/float64(bh))
 	screen.DrawImage(c.offscreen, op)
 }

@@ -34,6 +34,9 @@ type SceneManager struct {
 	// The zero value uses a default.
 	FadeDuration time.Duration
 
+	// FadeColor is the color transitions fade through. Nil means black.
+	FadeColor color.Color
+
 	stack   []Scene
 	started bool
 
@@ -138,9 +141,14 @@ func (sm *SceneManager) Draw(screen *ebiten.Image) {
 
 	if sm.fadeAlpha > 0 {
 		if a := uint8(sm.fadeAlpha * 255); a > 0 {
-			b := screen.Bounds()
-			vector.DrawFilledRect(screen, 0, 0, float32(b.Dx()), float32(b.Dy()),
-				color.RGBA{A: a}, false)
+			fade := sm.FadeColor
+			if fade == nil {
+				fade = color.Black
+			}
+			r, g, b, _ := fade.RGBA()
+			bounds := screen.Bounds()
+			vector.DrawFilledRect(screen, 0, 0, float32(bounds.Dx()), float32(bounds.Dy()),
+				color.RGBA{R: uint8(r >> 8), G: uint8(g >> 8), B: uint8(b >> 8), A: a}, false)
 		}
 	}
 }

@@ -56,10 +56,14 @@ func initDialogAudio() error {
 	if err != nil {
 		return err
 	}
-	if err := player.RegisterNewSound("media/sound/snd_text.wav", sndText); err != nil {
+	if err := player.RegisterNewSound("media/sound/snd_text.ogg", sndText); err != nil {
 		return err
 	}
 	text.DefaultDialog.SoundPlayer = player
+	text.DefaultDialog.CharSoundVolume = 0.5
+	// Subtle per-character pitch variation, Undertale-style.
+	text.DefaultDialog.CharPitchMin = 0.85
+	text.DefaultDialog.CharPitchMax = 1.2
 	return nil
 }
 
