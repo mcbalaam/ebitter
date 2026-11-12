@@ -27,6 +27,9 @@ type Entity struct {
 	// Bus, when set, is used for signals emitted by the entity (collisions,
 	// health, triggers, ...). Nil falls back to events.MasterSignalBus.
 	Bus *events.SignalBus
+	// Queues selects the queues used by Schedule, Destroy and deferred deletion.
+	// Nil falls back to the package-wide defaults.
+	Queues *queues.QueueSet
 
 	entries []componentEntry
 	index   map[string]Component
@@ -173,8 +176,9 @@ func (e *Entity) IsParallelSafe() bool { return false }
 
 // Schedule adds the entity to the update queue and the layered draw queue.
 func (e *Entity) Schedule() {
-	queues.DefaultUpdateQueue.Schedule(e)
-	queues.DefaultQueue.ScheduleAt(e, e.Layer)
+	q := e.queueSet()
+	q.Update.Schedule(e)
+	q.Draw.ScheduleAt(e, e.Layer)
 }
 
 // signalBus returns the bus the entity emits on.
@@ -185,10 +189,22 @@ func (e *Entity) signalBus() *events.SignalBus {
 	return &events.MasterSignalBus
 }
 
+// Signals returns the entity's configured signal bus, or MasterSignalBus when
+// no scene-specific bus was assigned.
+func (e *Entity) Signals() *events.SignalBus { return e.signalBus() }
+
+func (e *Entity) queueSet() *queues.QueueSet {
+	if e.Queues != nil {
+		return e.Queues
+	}
+	return queues.DefaultQueueSet
+}
+
 // Destroy removes the entity from the queues and drops its components.
 func (e *Entity) Destroy() {
-	queues.DefaultQueue.Unschedule(e)
-	queues.DefaultUpdateQueue.Unschedule(e)
+	q := e.queueSet()
+	q.Draw.Unschedule(e)
+	q.Update.Unschedule(e)
 	e.entries = nil
 	e.index = nil
 }

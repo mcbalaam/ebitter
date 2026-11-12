@@ -5,24 +5,44 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/mcbalaam/ebitter/queues"
 )
 
 type GameScene struct {
 	BgColor color.Color
+	runtime *Runtime
 }
 
 func NewGameScene() *GameScene {
 	return &GameScene{
 		BgColor: color.Black,
+		runtime: NewRuntime(),
 	}
 }
 
+func (s *GameScene) Runtime() *Runtime {
+	if s.runtime == nil {
+		s.runtime = NewRuntime()
+	}
+	return s.runtime
+}
+
+func (s *GameScene) Pause() {
+	s.Runtime().Queues.Pause()
+}
+
+func (s *GameScene) Resume() {
+	s.Runtime().Queues.Resume()
+}
+
 func (s *GameScene) Update(dt time.Duration) {
-	queues.DefaultUpdateQueue.Execute(dt)
+	s.Runtime().Queues.ExecuteUpdate(dt)
+	s.Runtime().Queues.ExecuteDelete()
+	if s.Runtime().Dialog.Active() {
+		s.Runtime().Dialog.Update(dt)
+	}
 }
 
 func (s *GameScene) Draw(screen *ebiten.Image) {
 	screen.Fill(s.BgColor)
-	queues.DefaultQueue.Execute(screen)
+	s.Runtime().Queues.ExecuteDraw(screen)
 }

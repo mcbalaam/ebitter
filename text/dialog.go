@@ -5,6 +5,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/mcbalaam/ebitter/queues"
 	"github.com/mcbalaam/ebitter/sound"
 )
 
@@ -14,6 +15,7 @@ type DialogManager struct {
 	ShowAllChecker func() bool
 	AdvanceChecker func() bool
 	SoundPlayer    *sound.SoundPlayer
+	Queues         *queues.QueueSet
 
 	// CharSoundVolume is the volume of each character's typing sound; <= 0
 	// uses 0.5. CharPitchMin/Max optionally bound a random pitch multiplier
@@ -43,6 +45,16 @@ func defaultAdvance() bool {
 var DefaultDialog = &DialogManager{
 	ShowAllChecker: defaultShowAll,
 	AdvanceChecker: defaultAdvance,
+}
+
+// NewDialogManager returns an independent dialog state machine with the
+// standard keyboard controls. Configure its sound player and queue set as
+// needed by the owning scene.
+func NewDialogManager() *DialogManager {
+	return &DialogManager{
+		ShowAllChecker: defaultShowAll,
+		AdvanceChecker: defaultAdvance,
+	}
 }
 
 func (dm *DialogManager) Show(text string, style TextStyle, charSound string) {
@@ -101,7 +113,7 @@ func (dm *DialogManager) Update(dt time.Duration) {
 }
 
 func (dm *DialogManager) start(text string, style TextStyle, charSound string) {
-	td := NewTextDisplay(text, style)
+	td := NewTextDisplayOn(text, style, dm.Queues)
 	if td == nil {
 		return
 	}

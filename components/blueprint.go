@@ -7,6 +7,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/mcbalaam/ebitter/events"
 	"github.com/mcbalaam/ebitter/queues"
 )
 
@@ -116,8 +117,16 @@ func LoadBlueprint(r io.Reader) (*Blueprint, error) {
 // Instantiate builds a fresh entity from the blueprint. Components are created
 // through the registry, so custom components registered by the game work too.
 func (b *Blueprint) Instantiate() (*Entity, error) {
+	return b.InstantiateWith(nil, nil)
+}
+
+// InstantiateWith creates an entity configured to use the supplied signal bus
+// and queues. Both may be nil to use package defaults.
+func (b *Blueprint) InstantiateWith(bus *events.SignalBus, q *queues.QueueSet) (*Entity, error) {
 	e := NewEntity(b.ID)
 	e.Layer = b.Layer
+	e.Bus = bus
+	e.Queues = q
 	if len(b.Tags) > 0 {
 		e.Tags = append([]string(nil), b.Tags...)
 	}

@@ -22,6 +22,6 @@ func (l *Lifetime) Update(e *Entity, dt time.Duration) {
 	}
 	l.elapsed += dt.Seconds()
 	if l.elapsed >= l.TTL {
-		queues.QDel(e)
+		queues.QDelOn(e.Queues, e)
 	}
 }

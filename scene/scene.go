@@ -47,12 +47,18 @@ type SceneManager struct {
 }
 
 func (sm *SceneManager) Push(s Scene) {
+	if current := sm.Top(); current != nil {
+		pause(current)
+	}
 	sm.stack = append(sm.stack, s)
+	resume(s)
 }
 
 func (sm *SceneManager) Pop() {
 	if len(sm.stack) > 0 {
+		pause(sm.stack[len(sm.stack)-1])
 		sm.stack = sm.stack[:len(sm.stack)-1]
+		resume(sm.Top())
 	}
 }
 
@@ -167,11 +173,25 @@ func (sm *SceneManager) applyPending() {
 		sm.pendingPop = false
 	}
 	if sm.pending != nil {
+		pause(sm.Top())
 		if len(sm.stack) > 0 {
 			sm.stack[len(sm.stack)-1] = sm.pending
 		} else {
 			sm.stack = append(sm.stack, sm.pending)
 		}
+		resume(sm.pending)
 		sm.pending = nil
+	}
+}
+
+func pause(s Scene) {
+	if lifecycle, ok := s.(LifecycleScene); ok {
+		lifecycle.Pause()
+	}
+}
+
+func resume(s Scene) {
+	if lifecycle, ok := s.(LifecycleScene); ok {
+		lifecycle.Resume()
 	}
 }

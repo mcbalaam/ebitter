@@ -28,7 +28,7 @@ func (p *PlayerController) Type() string { return "playerController" }
 
 func (p *PlayerController) Init(e *enginecomponents.Entity) {
 	p.pressed = map[string]bool{}
-	events.MasterSignalBus.Subscribe("player.input", e, func(sig events.Signal) {
+	e.Signals().Subscribe("player.input", e, func(sig events.Signal) {
 		if sig.Source != e {
 			return
 		}
@@ -165,7 +165,7 @@ func registerPlayerController() {
 
 // EmitInput sends a directional key state to the player's controller.
 func EmitInput(e *enginecomponents.Entity, key string, pressed bool) {
-	events.MasterSignalBus.Emit("player.input", e, playerInput{Key: key, Pressed: pressed})
+	e.Signals().Emit("player.input", e, playerInput{Key: key, Pressed: pressed})
 }
 
 func init() { registerPlayerController() }

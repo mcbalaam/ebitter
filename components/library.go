@@ -8,6 +8,8 @@ import (
 	"sync"
 
 	"github.com/mcbalaam/ebitter/assetfs"
+	"github.com/mcbalaam/ebitter/events"
+	"github.com/mcbalaam/ebitter/queues"
 )
 
 // BlueprintLibrary loads and caches entity blueprints from a directory of YAML
@@ -89,11 +91,17 @@ func (l *BlueprintLibrary) LoadAll() error {
 
 // Spawn instantiates the blueprint id and places its transform at (x, y).
 func (l *BlueprintLibrary) Spawn(id string, x, y float64) (*Entity, error) {
+	return l.SpawnWith(id, x, y, nil, nil)
+}
+
+// SpawnWith instantiates a prototype at (x, y) with an optional scene bus and
+// queue set. Nil dependencies use package defaults.
+func (l *BlueprintLibrary) SpawnWith(id string, x, y float64, bus *events.SignalBus, q *queues.QueueSet) (*Entity, error) {
 	bp, err := l.Load(id)
 	if err != nil {
 		return nil, err
 	}
-	e, err := bp.Instantiate()
+	e, err := bp.InstantiateWith(bus, q)
 	if err != nil {
 		return nil, err
 	}

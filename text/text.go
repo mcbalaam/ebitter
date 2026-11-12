@@ -47,6 +47,7 @@ func (g *Glyph) Draw(s *ebiten.Image) {
 
 type TextDisplay struct {
 	textStr    *TextString
+	Queues     *queues.QueueSet
 	Commands   []DialogueCommand
 	CmdIndex   int
 	Displayed  []*Glyph
@@ -72,6 +73,12 @@ type TextDisplay struct {
 // DialogManager does this for dialog; standalone users should call Update(dt)
 // (or schedule it on queues.DefaultUpdateQueue) themselves.
 func NewTextDisplay(text string, style TextStyle) *TextDisplay {
+	return NewTextDisplayOn(text, style, nil)
+}
+
+// NewTextDisplayOn creates a dialog display scheduled on q. A nil queue set
+// uses the package-wide defaults.
+func NewTextDisplayOn(text string, style TextStyle, q *queues.QueueSet) *TextDisplay {
 	font := loadFont(style.FontName)
 	if font == nil {
 		return nil
@@ -79,6 +86,7 @@ func NewTextDisplay(text string, style TextStyle) *TextDisplay {
 
 	td := &TextDisplay{
 		textStr:   NewTextString(text, style.StartX, style.StartY, style),
+		Queues:    q,
 		Displayed: make([]*Glyph, 0),
 	}
 
@@ -103,7 +111,12 @@ func NewTextDisplay(text string, style TextStyle) *TextDisplay {
 		td.revealAll()
 	}
 
-	queues.DefaultQueue.ScheduleAt(td, queues.LayerText)
+	if q == nil {
+		q = queues.DefaultQueueSet
+	}
+	td.Queues = q
+	td.textStr.Queues = q
+	q.Draw.ScheduleAt(td, queues.LayerText)
 
 	return td
 }
@@ -272,8 +285,12 @@ func (t *TextDisplay) RevealedAll() bool { return t.revealedAll }
 func (t *TextDisplay) Waiting() bool     { return t.waiting }
 
 func (t *TextDisplay) Destroy() {
-	queues.DefaultQueue.Unschedule(t)
-	queues.DefaultUpdateQueue.Unschedule(t)
+	q := t.Queues
+	if q == nil {
+		q = queues.DefaultQueueSet
+	}
+	q.Draw.Unschedule(t)
+	q.Update.Unschedule(t)
 	t.Displayed = nil
 	t.Commands = nil
 }

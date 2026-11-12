@@ -26,7 +26,7 @@ var demoDialogs = map[string]demoDialog{
 
 const sndText = "snd_text"
 
-func InitDialogAudio() error {
+func initDialogAudio(dialog *text.DialogManager) error {
 	player, err := sound.NewSoundPlayer(44100)
 	if err != nil {
 		return err
@@ -34,10 +34,10 @@ func InitDialogAudio() error {
 	if err := player.RegisterNewSound("media/sound/snd_text.ogg", sndText); err != nil {
 		return err
 	}
-	text.DefaultDialog.SoundPlayer = player
-	text.DefaultDialog.CharSoundVolume = 0.5
-	text.DefaultDialog.CharPitchMin = 1.0
-	text.DefaultDialog.CharPitchMax = 1.0
+	dialog.SoundPlayer = player
+	dialog.CharSoundVolume = 0.5
+	dialog.CharPitchMin = 1.0
+	dialog.CharPitchMax = 1.0
 	return nil
 }
 

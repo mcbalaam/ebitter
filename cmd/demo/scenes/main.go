@@ -12,7 +12,7 @@ import (
 	democomponents "github.com/mcbalaam/ebitter/cmd/demo/components"
 	"github.com/mcbalaam/ebitter/components"
 	"github.com/mcbalaam/ebitter/engine"
-	"github.com/mcbalaam/ebitter/queues"
+	"github.com/mcbalaam/ebitter/scene"
 	"github.com/mcbalaam/ebitter/text"
 	"github.com/mcbalaam/ebitter/tiled"
 )
@@ -26,6 +26,7 @@ type demoScene struct {
 	ShowCamArrow  bool
 
 	input         *engine.Input
+	runtime       *scene.Runtime
 	player        *components.Entity
 	built         bool
 	hintSmooth    *text.TextString
@@ -71,11 +72,15 @@ func NewDemoScene(mapPath string, mapScale float64) (*demoScene, error) {
 		ShowColliders: false,
 		ShowZones:     false,
 		input:         engine.NewInput(),
+		runtime:       scene.NewRuntime(),
+	}
+	if err := initDialogAudio(s.runtime.Dialog); err != nil {
+		log.Printf("dialog audio: %v", err)
 	}
 
 	lib := components.NewBlueprintLibrary(nil, "prototypes")
 	for _, placement := range m.Spawns() {
-		entity, spawnErr := lib.Spawn(placement.Blueprint, placement.X, placement.Y)
+		entity, spawnErr := lib.SpawnWith(placement.Blueprint, placement.X, placement.Y, s.runtime.Signals, s.runtime.Queues)
 		if spawnErr != nil {
 			return nil, fmt.Errorf("map spawn %q: %w", placement.Blueprint, spawnErr)
 		}
@@ -93,32 +98,35 @@ func NewDemoScene(mapPath string, mapScale float64) (*demoScene, error) {
 	controller.SetSolids(m.Colliders())
 
 	cam := engine.NewCamera()
+	cam.SetUpdateQueue(s.runtime.Queues.Update)
 	cam.SetBounds(float64(m.Width()), float64(m.Height()))
 	cam.SetViewport(640, 480)
 	cam.CenterOn(s.player.Transform().X, s.player.Transform().Y)
 	s.Camera = cam
 
-	hs := hudStyle()
-	s.hintSmooth = text.NewTextString(hudHintFollow, 20, 40, hs)
-	s.hintSmooth.Show()
-	hs2 := hudStyle()
-	s.hintColliders = text.NewTextString(hudHintColliders, 20, 0, hs2)
-	s.hintColliders.Show()
-	hs3 := hudStyle()
-	s.hintZones = text.NewTextString(hudHintZones, 20, 20, hs3)
-	s.hintZones.Show()
-	hs4 := hudStyle()
-	s.hintArrow = text.NewTextString(hudHintArrow, 20, 60, hs4)
-	s.hintArrow.Show()
-	hs5 := hudStyle()
-	s.hintLabel = text.NewTextString(hudHintLabel, 20, 80, hs5)
-	s.hintLabel.Show()
+	s.hintSmooth = s.newHUDText(hudHintFollow, 20, 40)
+	s.hintColliders = s.newHUDText(hudHintColliders, 20, 0)
+	s.hintZones = s.newHUDText(hudHintZones, 20, 20)
+	s.hintArrow = s.newHUDText(hudHintArrow, 20, 60)
+	s.hintLabel = s.newHUDText(hudHintLabel, 20, 80)
 	return s, nil
+}
+
+func (s *demoScene) Runtime() *scene.Runtime { return s.runtime }
+func (s *demoScene) Pause()                  { s.runtime.Queues.Pause() }
+func (s *demoScene) Resume()                 { s.runtime.Queues.Resume() }
+
+func (s *demoScene) newHUDText(value string, x, y float64) *text.TextString {
+	ts := text.NewTextString(value, x, y, hudStyle())
+	ts.Queues = s.runtime.Queues
+	ts.Show()
+	return ts
 }
 
 func (s *demoScene) Update(dt time.Duration) {
 	s.input.Update()
-	queues.DefaultUpdateQueue.Execute(dt)
+	s.runtime.Queues.ExecuteUpdate(dt)
+	s.runtime.Queues.ExecuteDelete()
 	for _, key := range []struct {
 		code ebiten.Key
 		name string
@@ -138,8 +146,8 @@ func (s *demoScene) Update(dt time.Duration) {
 		}
 	}
 
-	if text.DefaultDialog.Active() {
-		text.DefaultDialog.Update(dt)
+	if s.runtime.Dialog.Active() {
+		s.runtime.Dialog.Update(dt)
 		s.followCamera()
 		return
 	}
@@ -175,7 +183,7 @@ func (s *demoScene) Update(dt time.Duration) {
 		if zone := s.facedZone(); zone != nil {
 			if d, ok := demoDialogs[zone.Name]; ok {
 				for _, phrase := range d.phrases {
-					text.DefaultDialog.Show(phrase, dialogStyle, d.sound)
+					s.runtime.Dialog.Show(phrase, dialogStyle, d.sound)
 				}
 			}
 		}
@@ -279,10 +287,10 @@ func (s *demoScene) Draw(screen *ebiten.Image) {
 		}
 	})
 
-	if text.DefaultDialog.Active() {
+	if s.runtime.Dialog.Active() {
 		drawTextbox(screen)
 	}
-	queues.DefaultQueue.Execute(screen)
+	s.runtime.Queues.ExecuteDraw(screen)
 }
 
 // drawCamArrow renders a debug arrow from the camera center (the true

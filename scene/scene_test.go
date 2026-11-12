@@ -10,10 +10,37 @@ import (
 type dummyScene struct {
 	name    string
 	updates int
+	paused  int
+	resumed int
 }
 
 func (d *dummyScene) Update(time.Duration) { d.updates++ }
 func (d *dummyScene) Draw(*ebiten.Image)   {}
+func (d *dummyScene) Pause()               { d.paused++ }
+func (d *dummyScene) Resume()              { d.resumed++ }
+
+func TestSceneStackPausesAndResumesScenes(t *testing.T) {
+	sm := newTestManager()
+	a := &dummyScene{name: "a"}
+	b := &dummyScene{name: "b"}
+	sm.Push(a)
+	sm.Push(b)
+	if a.paused != 1 || a.resumed != 1 || b.resumed != 1 {
+		t.Fatalf("push lifecycle: a paused=%d resumed=%d; b resumed=%d", a.paused, a.resumed, b.resumed)
+	}
+	sm.Pop()
+	if b.paused != 1 || a.resumed != 2 {
+		t.Fatalf("pop lifecycle: b paused=%d; a resumed=%d", b.paused, a.resumed)
+	}
+}
+
+func TestNewRuntimeCreatesSceneScopedServices(t *testing.T) {
+	a := NewRuntime()
+	b := NewRuntime()
+	if a.Queues == b.Queues || a.Signals == b.Signals || a.Dialog == b.Dialog {
+		t.Fatal("scene runtimes should not share queues, signal bus, or dialog state")
+	}
+}
 
 const testFade = 100 * time.Millisecond
 

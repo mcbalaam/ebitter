@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/mcbalaam/ebitter/queues"
 	"github.com/mcbalaam/ebitter/tween"
 )
 
@@ -29,8 +30,9 @@ type Camera struct {
 	followDur      time.Duration
 	zoomDur        time.Duration
 
-	easing     tween.EasingFunc
-	zoomFilter ebiten.Filter
+	easing      tween.EasingFunc
+	zoomFilter  ebiten.Filter
+	updateQueue *queues.UpdateQueue
 
 	targetX, targetY float64
 	targetZoom       float64
@@ -64,6 +66,10 @@ func (c *Camera) SetEasing(easing tween.EasingFunc) { c.easing = easing }
 // SetZoomFilter sets the filter used when upscaling the zoomed view. The
 // default is ebiten.FilterNearest (crisp pixel art).
 func (c *Camera) SetZoomFilter(filter ebiten.Filter) { c.zoomFilter = filter }
+
+// SetUpdateQueue selects the queue used by the camera's smooth-follow and
+// zoom tweens. A nil queue uses the global default.
+func (c *Camera) SetUpdateQueue(q *queues.UpdateQueue) { c.updateQueue = q }
 
 func (c *Camera) ease() tween.EasingFunc {
 	if c.easing == nil {
@@ -139,7 +145,12 @@ func (c *Camera) CenterOn(x, y float64) {
 				tween.Vec2{X: c.targetX, Y: c.targetY},
 				c.followDur,
 				func(v tween.Vec2) { c.X, c.Y = v.X, v.Y },
-			).SetEasing(c.ease()).Schedule()
+			).SetEasing(c.ease())
+			if c.updateQueue != nil {
+				c.posTween.ScheduleOn(c.updateQueue)
+			} else {
+				c.posTween.Schedule()
+			}
 		} else {
 			c.posTween.SetDuration(c.followDur).Retarget(tween.Vec2{X: c.targetX, Y: c.targetY})
 		}
@@ -164,7 +175,12 @@ func (c *Camera) SetZoom(z float64) {
 		if c.zoomTween == nil {
 			c.zoomTween = tween.NewFloat(c.Zoom, z, c.zoomDur,
 				func(v float64) { c.Zoom = v },
-			).SetEasing(c.ease()).Schedule()
+			).SetEasing(c.ease())
+			if c.updateQueue != nil {
+				c.zoomTween.ScheduleOn(c.updateQueue)
+			} else {
+				c.zoomTween.Schedule()
+			}
 		} else {
 			c.zoomTween.SetDuration(c.zoomDur).Retarget(z)
 		}

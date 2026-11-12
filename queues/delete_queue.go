@@ -14,9 +14,13 @@ type DeleteQueue struct {
 var DefaultDeleteQueue = &DeleteQueue{}
 
 func QDel(obj Destroyable) {
-	DefaultDeleteQueue.mu.Lock()
-	DefaultDeleteQueue.objects = append(DefaultDeleteQueue.objects, obj)
-	DefaultDeleteQueue.mu.Unlock()
+	DefaultDeleteQueue.Schedule(obj)
+}
+
+func (q *DeleteQueue) Schedule(obj Destroyable) {
+	q.mu.Lock()
+	q.objects = append(q.objects, obj)
+	q.mu.Unlock()
 }
 
 func (q *DeleteQueue) Execute() {

@@ -23,6 +23,7 @@ type TextString struct {
 	Visible    bool
 	Centered   bool
 	UpdateFunc func(ts *TextString, dt time.Duration)
+	Queues     *queues.QueueSet
 
 	font        *render.AnimatedIcon
 	image       *ebiten.Image
@@ -52,8 +53,9 @@ func (ts *TextString) Show() {
 		return
 	}
 	ts.Visible = true
-	queues.DefaultQueue.ScheduleAt(ts, ts.Layer)
-	queues.DefaultUpdateQueue.Schedule(ts)
+	q := ts.queueSet()
+	q.Draw.ScheduleAt(ts, ts.Layer)
+	q.Update.Schedule(ts)
 }
 
 func (ts *TextString) Hide() {
@@ -68,8 +70,16 @@ func (ts *TextString) Destroy() {
 	ts.Visible = false
 	ts.font = nil
 	ts.mu.Unlock()
-	queues.DefaultQueue.Unschedule(ts)
-	queues.DefaultUpdateQueue.Unschedule(ts)
+	q := ts.queueSet()
+	q.Draw.Unschedule(ts)
+	q.Update.Unschedule(ts)
+}
+
+func (ts *TextString) queueSet() *queues.QueueSet {
+	if ts.Queues != nil {
+		return ts.Queues
+	}
+	return queues.DefaultQueueSet
 }
 
 func (ts *TextString) SetText(text string) {

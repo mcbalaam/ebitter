@@ -42,6 +42,7 @@ type Tween[T any] struct {
 
 	repeated int
 	repeats  int
+	queue    *queues.UpdateQueue
 }
 
 func New[T any](from, to T, duration time.Duration, setter func(T), lerp func(T, T, float64) T) *Tween[T] {
@@ -99,10 +100,21 @@ func (t *Tween[T]) OnComplete(fn func()) *Tween[T] {
 // Schedule adds the tween to the default update queue if it is not already
 // there. Calling it repeatedly is safe.
 func (t *Tween[T]) Schedule() *Tween[T] {
-	if !queues.DefaultUpdateQueue.IsScheduled(t) {
-		queues.DefaultUpdateQueue.Schedule(t)
+	q := t.queue
+	if q == nil {
+		q = queues.DefaultUpdateQueue
+	}
+	if !q.IsScheduled(t) {
+		q.Schedule(t)
 	}
 	return t
+}
+
+// ScheduleOn selects q for this tween and schedules it there. A nil queue uses
+// the legacy default update queue.
+func (t *Tween[T]) ScheduleOn(q *queues.UpdateQueue) *Tween[T] {
+	t.queue = q
+	return t.Schedule()
 }
 
 // Value returns the tween's most recently applied value.
@@ -117,7 +129,14 @@ func Stop[T any](t *Tween[T]) {
 		return
 	}
 	t.done = true
-	queues.DefaultUpdateQueue.Unschedule(t)
+	t.updateQueue().Unschedule(t)
+}
+
+func (t *Tween[T]) updateQueue() *queues.UpdateQueue {
+	if t.queue != nil {
+		return t.queue
+	}
+	return queues.DefaultUpdateQueue
 }
 
 // Retarget redirects a running (or finished) tween toward a new destination,
@@ -192,7 +211,7 @@ func (t *Tween[T]) complete() {
 		if t.onComplete != nil {
 			t.onComplete()
 		}
-		queues.DefaultUpdateQueue.Unschedule(t)
+		t.updateQueue().Unschedule(t)
 		return
 	}
 

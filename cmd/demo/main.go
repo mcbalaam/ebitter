@@ -48,9 +48,6 @@ func main() {
 	ebiten.SetWindowTitle("Undebitter")
 
 	game := &Game{sm: &scene.SceneManager{}}
-	if err := scenes.InitDialogAudio(); err != nil {
-		log.Printf("dialog audio: %v", err)
-	}
 	mapScene, err := scenes.NewDemoScene("media/maps/ruins.tmx", 2)
 	if err != nil {
 		log.Fatalf("map: %v", err)

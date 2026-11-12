@@ -33,7 +33,7 @@ func (c *IconStateLabel) Init(e *enginecomponents.Entity) {
 		LineSpacing: 10,
 		Color:       color.White,
 	})
-	events.MasterSignalBus.Subscribe("demo.iconStateLabel.toggle", e, func(sig events.Signal) {
+	e.Signals().Subscribe("demo.iconStateLabel.toggle", e, func(sig events.Signal) {
 		if sig.Source == e {
 			c.visible = !c.visible
 		}
@@ -62,7 +62,7 @@ func (c *IconStateLabel) Draw(e *enginecomponents.Entity, screen *ebiten.Image) 
 
 // ToggleIconStateLabel toggles the state label attached to e, if present.
 func ToggleIconStateLabel(e *enginecomponents.Entity) {
-	events.MasterSignalBus.Emit("demo.iconStateLabel.toggle", e)
+	e.Signals().Emit("demo.iconStateLabel.toggle", e)
 }
 
 func registerIconStateLabel() {
