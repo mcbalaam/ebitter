@@ -23,7 +23,7 @@ Ebitter offers you:
 - OGG sound playback;
 - an asset filesystem for embedding!
 
-Check out the [quickstart guide](./QUICKSTART.md) to see how to use Ebitter!
+Check out the [quickstart guide](./QUICKSTART.md) to see how to use Ebitter or run the [web demo](http://mcbalaam.github.io/ebitter)!
 
 ## Run and test
 
