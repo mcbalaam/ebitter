@@ -6,7 +6,7 @@ All of the tooling required to work with Ebitter is free and opensource.
 
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/1d4248ed-79ef-4a70-8b55-ac551697bc91" />
 <br>
-<sub>A demo scene running in Ebitter showcasing tilemap loading; [Aseprite](https://github.com/aseprite/aseprite/) and [Tiled](https://github.com/mapeditor/tiled/) are open. Tilemap and all the artwork are from UNDERTALE by Toby Fox and are used for demonstration purposes.</sub>
+<sub>A demo scene running in Ebitter showcasing tilemap loading; <a href="https://github.com/aseprite/aseprite/">Aseprite</a> and <a href="https://github.com/mapeditor/tiled/">Tiled</a> are open. Tilemap and all the artwork are from UNDERTALE by Toby Fox and are used for demonstration purposes.</sub>
 
 Ebitter offers you:
 - scene management;
