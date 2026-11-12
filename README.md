@@ -6,26 +6,30 @@ All of the tooling required to work with Ebitter is free and opensource.
 
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/1d4248ed-79ef-4a70-8b55-ac551697bc91" />
 <br>
-
 <sub>A demo scene running in Ebitter showcasing tilemap loading; [Aseprite](https://github.com/aseprite/aseprite/) and [Tiled](https://github.com/mapeditor/tiled/) are open. Tilemap and all the artwork are from UNDERTALE by Toby Fox and are used for demonstration purposes.</sub>
 
+Ebitter offers you:
+- scene management;
+- camera movement;
+- [Tiled](https://github.com/mapeditor/tiled/) map loading;
+- [Aseprite](https://github.com/aseprite/aseprite/) sprite-sheet loading and BYOND-like stateful icons;
+- a component system, YAML prototypes;
+- tweening;
+- signal buses;
+- update/draw/delete queues and auto-registration;
+- custom font rendering;
+- a dialogue scripting system;
+- font-atlas generation;
+- OGG sound playback;
+- an asset filesystem for embedding!
 
-Live demo here: https://mcblm.xyz/ebitter
-<br>
-<br>
+Check out the [quickstart guide](./QUICKSTART.md) to see how to use Ebitter!
 
-What I currently have in store:
-- scenes: proper `Scene` management and swapping;
-- `Camera`: move and zoom the camera around the scene;
-- sprite atlas cutting: create animated multi-`state` sprites using Aseprite's tag system and sprite sheet exports;
-- font cutting: use any `.ttf` font in your game!
-- UTDR-like dialogue scripting system: a proper `DialogueHandler` and markers to pause/end/otherwise modify the text;
-- separate `Update`, `Delete` and layered `Draw` queues;
-- component-based `Entity` to be used as a base for any on-screen things;
-- SAT collision detection, hitboxes as a component, plus a spatial grid for broad-phase neighbor queries;
-- a signal bus to subscribe to and emit game events;
-- a simplified input handler with frame-perfect snapshots;
-- improved sound playing: registering sounds to be reused, pitch variation, volume controls;
-- Tiled map support: load `.tmx` maps with prerendered layers, collision boxes, named points/spawn markers and interaction zones firing signals on touch or button press;
-- generic tweening with easing functions, once/loop/ping-pong modes, delays and repeats;
-- an embedded filesystem helper aware of WASM builds.
+## Run and test
+
+```sh
+go run ./cmd/demo
+go test ./...
+```
+
+Other useful checks are `go build ./...` and `go vet ./...`.

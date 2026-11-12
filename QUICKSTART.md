@@ -170,18 +170,24 @@ m.Height() // int
 
 // named point objects (e.g. a "start" spawn marker)
 if p, ok := m.Point("start"); ok {
-	player.X, player.Y = p.X, p.Y
+	if transform := player.Transform(); transform != nil {
+		transform.SetPosition(p.X, p.Y)
+	}
 }
 
-// static collision boxes
-for _, c := range m.Colliders() {
-	if player.Overlaps(c) { /* resolve */ }
+// Tiled objects with a string property `blueprint` are returned as requests.
+// Create them with the components BlueprintLibrary (see section 5).
+for _, spawn := range m.Spawns() {
+	entity, err := library.Spawn(spawn.Blueprint, spawn.X, spawn.Y)
+	if err != nil {
+		return err // e.g. from your scene constructor
+	}
+	entity.Schedule()
 }
 
-// interaction zones
-for _, z := range m.Interactions() {
-	if z.Check(&playerBox, interactPressed, player) { /* fired */ }
-}
+// Static Tiled collider boxes and interaction zones are available as:
+m.Colliders()
+m.Interactions()
 ```
 
 ### Map authoring notes
@@ -218,59 +224,89 @@ icon.Draw(screen, x, y, scaleX, scaleY, 0)
 The path is the directory (relative to the `assetfs` root) holding the
 `.png`/`.json` pair; pass it in full as above.
 
-## 5. An entity with a hitbox and an icon
+## 5. Component entities and prototypes
 
-Entities live in `components`. They combine a `Transform`, optional `Velocity`,
-`Sprite` (an animated icon) and `Collider` (a SAT hitbox):
+An entity is a container for components. Components are registered by name;
+built-ins include `transform`, `velocity`, `sprite`, `hitbox`, `body`,
+`animator`, `trigger`, `interactable` and `lifetime`. Components may implement
+`Updater`, `Drawer`, `SignalHandler` and/or `Initializer`. Update and draw order
+comes from registration and can be overridden with `order` in YAML.
+
+Create a YAML prototype in the application's asset filesystem, for example
+`media/entities/hero.yml`:
+
+```yaml
+id: hero
+layer: entity
+tags: [player]
+components:
+  transform: { x: 0, y: 0, scale: 2 }
+  sprite:    { icon: hero, state: idle, anchor: [0.5, 1.0] }
+  velocity:  { x: 0, y: 0 }
+  hitbox:    { w: 16, h: 20, layer: player }
+```
+
+Load it through a `BlueprintLibrary`. Loading validates the document and each
+registered component's YAML schema; `Spawn` creates a fresh entity and sets its
+transform position:
+
+```go
+lib := components.NewBlueprintLibrary(nil, "media/entities") // nil uses assetfs.FS
+player, err := lib.Spawn("hero", 80, 100)
+if err != nil {
+	return err
+}
+
+player.Schedule() // default update and layered draw queues
+```
+
+The application must register custom component types before loading prototypes
+that use them. Registration provides a factory and a validator:
 
 ```go
 import (
 	"github.com/mcbalaam/ebitter/components"
-	"github.com/mcbalaam/ebitter/queues"
+	"gopkg.in/yaml.v3"
 )
 
-icon, err := render.NewAnimatedIconFromPath("media/sprites/frisk", "down")
-
-player := &components.Entity{
-	Transform: &components.Transform{X: 80, Y: 200, ScaleX: 1, ScaleY: 1},
-	Velocity:  &components.Velocity{},
-	Sprite:    &components.Sprite{Icon: icon},
-	Collider:  components.NewCollider(42, 24, 0, 0),
-	Layer:     queues.LayerEntity,
+if err := components.Register("myComponent", 15,
+	func(node *yaml.Node) (components.Component, error) {
+		return &MyComponent{}, nil
+	},
+	func(node *yaml.Node) error {
+		// Validate the YAML shape without creating runtime resources.
+		return nil
+	},
+); err != nil {
+	panic(err)
 }
-
-// update moves by velocity, advances the sprite and syncs collider world verts
-queues.DefaultUpdateQueue.Schedule(player)
-
-// draw uses Transform position/scale/rotation
-queues.DefaultQueue.ScheduleAt(player, player.Layer)
 ```
 
-- `Entity.Update(dt)` integrates `Velocity`, updates `Sprite`, and refreshes
-  `Collider.WorldVerts` from the `Transform`.
-- `Entity.Draw(screen)` draws the sprite at `Transform.X/Y`.
-- `Entity.CheckCollisionsWithList(others, signalName)` emits a signal for each
-  other entity whose collider intersects (see below).
-- `Entity.Destroy()` removes the entity from the queues and nils its parts.
+Implement `Type() string` on the component. The registration name must match
+the returned type and the YAML key. Implement `Update`, `Draw` or `OnSignal` as
+needed; those methods receive the owning `*components.Entity`, which provides
+access to sibling components. `Entity.Add` also supports programmatic creation.
 
-If your scene is a `scene.NewGameScene()`, its `Update`/`Draw` already run
-`queues.DefaultUpdateQueue` and `queues.DefaultQueue`, so scheduled entities
-work with no extra code.
+`Entity.Update(dt)`, `Entity.Draw(screen)` and `Entity.OnSignal(signal)` can be
+called directly. `Entity.Schedule()` uses the package's default queues, which
+are global; custom scenes can run the queues themselves. `Entity.Destroy()`
+removes it from the default queues.
 
 ## 6. Events (the signal bus)
 
-Ebitter has a global signal bus: `events.MasterSignalBus`. A `Signal` has a
-`Name`, `Source` and optional `Data`.
+The package provides `events.MasterSignalBus` as a convenience default. A scene
+can instead own a `SignalBus` and assign it to entities/zones that emit signals.
+A `Signal` has a `Name`, `Source` and optional `Data`.
 
 ```go
 import "github.com/mcbalaam/ebitter/events"
 
-// subscribe an entity (or anything) to a signal
+// subscribe an entity (or anything) to the default signal bus
 events.MasterSignalBus.Subscribe("enemy_died", player, func(s events.Signal) {
 	// s.Source is the emitter, s.Data the payload
 })
 
-// emit
+// emit on the default bus
 events.MasterSignalBus.Emit("enemy_died", enemy, points)
 ```
 
@@ -307,7 +343,7 @@ func (s *playScene) Update(dt time.Duration) {
 	// scene.GameScene runs it for you, custom scenes must call it once per frame:
 	queues.DefaultUpdateQueue.Execute(dt)
 
-	cam.CenterOn(player.X+player.W/2, player.Y+player.H/2)
+	cam.CenterOn(player.Transform().X, player.Transform().Y)
 }
 
 func (s *playScene) Draw(screen *ebiten.Image) {
@@ -336,8 +372,8 @@ func (s *playScene) Draw(screen *ebiten.Image) {
 3. Write scenes implementing `Scene`; push the first, switch later.
 4. Load maps with `tiled.LoadMapScaled`, icons with
    `render.NewAnimatedIconFromPath`.
-5. Compose `components.Entity` (Transform + Collider + Sprite) and schedule it
-   on the queues.
+5. Compose an entity from components in code or load it from a YAML prototype;
+   schedule it on the default queues or call its lifecycle methods yourself.
 6. Decouple logic with `events.MasterSignalBus.Subscribe`/`Emit`.
 7. Frame the world with `engine.Camera` (`CenterOn`/`SetZoom`/`Apply`, optional
    smooth follow), and run the update queue each frame for tweens to move.
