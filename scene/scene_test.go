@@ -106,6 +106,9 @@ func TestSwitchToReplacesSceneAtBlack(t *testing.T) {
 	if got := sm.Top(); got != b {
 		t.Fatalf("Top() = %v, want b after the fade-out", got)
 	}
+	if a.paused != 1 || b.resumed != 1 {
+		t.Fatalf("switch lifecycle: outgoing paused=%d, incoming resumed=%d; want 1 each", a.paused, b.resumed)
+	}
 	if len(sm.stack) != 1 {
 		t.Fatalf("stack len = %d, want 1 (replace, not push)", len(sm.stack))
 	}
@@ -131,6 +134,9 @@ func TestPopFaded(t *testing.T) {
 	sm.Update(testFade) // fade out to black, pop, start fade-in
 	if got := sm.Top(); got != a {
 		t.Fatalf("Top() = %v, want a after the pop", got)
+	}
+	if b.paused != 1 || a.resumed != 2 {
+		t.Fatalf("faded pop lifecycle: outgoing paused=%d, revealed resumed=%d; want 1 and 2", b.paused, a.resumed)
 	}
 
 	step(sm, 2, testFade)
