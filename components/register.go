@@ -33,27 +33,35 @@ const (
 )
 
 func init() {
-	Register("body", orderBody, decode(func() *Body { return &Body{} }))
-	Register("velocity", orderVelocity, decode(func() *Velocity { return &Velocity{} }))
-	Register("transform", orderTransform, newTransformFactory())
-	Register("animator", orderAnimator, decode(func() *Animator { return &Animator{} }))
-	Register("sprite", orderSprite, newSpriteFactory())
-	Register("hitbox", orderHitbox, newHitboxFactory())
-	Register("trigger", orderTrigger, newTriggerFactory())
-	Register("interactable", orderInteractable, newInteractableFactory())
-	Register("lifetime", orderLifetime, decode(func() *Lifetime { return &Lifetime{} }))
+	registerBuiltin("body", orderBody, decode(func() *Body { return &Body{} }), strictConfig(func() *Body { return &Body{} }))
+	registerBuiltin("velocity", orderVelocity, decode(func() *Velocity { return &Velocity{} }), strictConfig(func() *Velocity { return &Velocity{} }))
+	registerBuiltin("transform", orderTransform, newTransformFactory(), strictConfig(func() *transformConfig { return &transformConfig{} }))
+	registerBuiltin("animator", orderAnimator, decode(func() *Animator { return &Animator{} }), strictConfig(func() *Animator { return &Animator{} }))
+	registerBuiltin("sprite", orderSprite, newSpriteFactory(), vectorFields(strictConfig(func() *spriteConfig { return &spriteConfig{} }), "offset", "anchor"))
+	registerBuiltin("hitbox", orderHitbox, newHitboxFactory(), vectorFields(strictConfig(func() *hitboxConfig { return &hitboxConfig{} }), "offset"))
+	registerBuiltin("trigger", orderTrigger, newTriggerFactory(), vectorFields(strictConfig(func() *triggerCfg { return &triggerCfg{} }), "offset"))
+	registerBuiltin("interactable", orderInteractable, newInteractableFactory(), vectorFields(strictConfig(func() *interactableConfig { return &interactableConfig{} }), "offset"))
+	registerBuiltin("lifetime", orderLifetime, decode(func() *Lifetime { return &Lifetime{} }), strictConfig(func() *Lifetime { return &Lifetime{} }))
+}
+
+func registerBuiltin(name string, order int, factory Factory, validator Validator) {
+	if err := Register(name, order, factory, validator); err != nil {
+		panic(err)
+	}
+}
+
+type transformConfig struct {
+	X        float64 `yaml:"x"`
+	Y        float64 `yaml:"y"`
+	Scale    float64 `yaml:"scale"`
+	ScaleX   float64 `yaml:"scaleX"`
+	ScaleY   float64 `yaml:"scaleY"`
+	Rotation float64 `yaml:"rotation"`
 }
 
 func newTransformFactory() Factory {
-	type cfg struct {
-		X, Y     float64
-		Scale    float64
-		ScaleX   float64
-		ScaleY   float64
-		Rotation float64
-	}
 	return func(node *yaml.Node) (Component, error) {
-		var c cfg
+		var c transformConfig
 		if err := decodeYAML(node, &c); err != nil {
 			return nil, err
 		}
@@ -76,17 +84,18 @@ func newTransformFactory() Factory {
 	}
 }
 
+type spriteConfig struct {
+	Icon   string    `yaml:"icon"`
+	State  string    `yaml:"state"`
+	Offset []float64 `yaml:"offset"`
+	Anchor []float64 `yaml:"anchor"`
+	FlipH  bool      `yaml:"flipH"`
+	FlipV  bool      `yaml:"flipV"`
+}
+
 func newSpriteFactory() Factory {
-	type cfg struct {
-		Icon   string
-		State  string
-		Offset []float64
-		Anchor []float64
-		FlipH  bool
-		FlipV  bool
-	}
 	return func(node *yaml.Node) (Component, error) {
-		var c cfg
+		var c spriteConfig
 		if err := decodeYAML(node, &c); err != nil {
 			return nil, err
 		}
@@ -108,16 +117,18 @@ func newSpriteFactory() Factory {
 	}
 }
 
+type hitboxConfig struct {
+	W      float64   `yaml:"w"`
+	H      float64   `yaml:"h"`
+	Offset []float64 `yaml:"offset"`
+	Layer  string    `yaml:"layer"`
+	Mask   []string  `yaml:"mask"`
+	Solid  bool      `yaml:"solid"`
+}
+
 func newHitboxFactory() Factory {
-	type cfg struct {
-		W, H   float64
-		Offset []float64
-		Layer  string
-		Mask   []string
-		Solid  bool
-	}
 	return func(node *yaml.Node) (Component, error) {
-		var c cfg
+		var c hitboxConfig
 		if err := decodeYAML(node, &c); err != nil {
 			return nil, err
 		}
@@ -167,15 +178,22 @@ func newTriggerFactory() Factory {
 }
 
 func newInteractableFactory() Factory {
-	type cfg struct {
-		Trigger triggerCfg `yaml:",inline"`
-		Prompt  string     `yaml:"prompt"`
-	}
 	return func(node *yaml.Node) (Component, error) {
-		var c cfg
+		var c interactableConfig
 		if err := decodeYAML(node, &c); err != nil {
 			return nil, err
 		}
-		return NewInteractable(c.Trigger.build(), c.Prompt), nil
+		trigger := triggerCfg{W: c.W, H: c.H, Offset: c.Offset, Signal: c.Signal, Mode: c.Mode, Once: c.Once}
+		return NewInteractable(trigger.build(), c.Prompt), nil
 	}
+}
+
+type interactableConfig struct {
+	W      float64   `yaml:"w"`
+	H      float64   `yaml:"h"`
+	Offset []float64 `yaml:"offset"`
+	Signal string    `yaml:"signal"`
+	Mode   string    `yaml:"mode"`
+	Once   bool      `yaml:"once"`
+	Prompt string    `yaml:"prompt"`
 }

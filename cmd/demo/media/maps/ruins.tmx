@@ -54,7 +54,8 @@
   </object>
   <object id="30" name="Start" x="130" y="210">
    <properties>
-    <property name="name" value="spawn"/>
+     <property name="name" value="spawn"/>
+     <property name="blueprint" value="playerChar"/>
    </properties>
    <point/>
   </object>

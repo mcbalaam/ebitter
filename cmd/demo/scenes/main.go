@@ -1,6 +1,7 @@
-package main
+package scenes
 
 import (
+	"fmt"
 	"image/color"
 	"log"
 	"math"
@@ -8,36 +9,31 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	democomponents "github.com/mcbalaam/ebitter/cmd/demo/components"
+	"github.com/mcbalaam/ebitter/components"
 	"github.com/mcbalaam/ebitter/engine"
 	"github.com/mcbalaam/ebitter/queues"
-	"github.com/mcbalaam/ebitter/render"
 	"github.com/mcbalaam/ebitter/text"
 	"github.com/mcbalaam/ebitter/tiled"
 )
 
 type demoScene struct {
-	Map            *tiled.GameMap
-	Camera         *engine.Camera
-	BgColor        color.Color
-	ShowColliders  bool
-	ShowZones      bool
-	ShowCamArrow   bool
-	ShowStateLabel bool
+	Map           *tiled.GameMap
+	Camera        *engine.Camera
+	BgColor       color.Color
+	ShowColliders bool
+	ShowZones     bool
+	ShowCamArrow  bool
 
 	input         *engine.Input
-	player        *tiled.ColliderBox
-	color         color.RGBA
-	speed         float64
+	player        *components.Entity
 	built         bool
-	sprite        *render.AnimatedIcon
-	facing        string
 	hintSmooth    *text.TextString
 	hintColliders *text.TextString
 	hintZones     *text.TextString
 	hintArrow     *text.TextString
 	hintLabel     *text.TextString
-	stateLabel    *text.TextString
-	lastState     string
+	facing        string
 }
 
 const (
@@ -75,23 +71,31 @@ func NewDemoScene(mapPath string, mapScale float64) (*demoScene, error) {
 		ShowColliders: false,
 		ShowZones:     false,
 		input:         engine.NewInput(),
-		color:         color.RGBA{0xff, 0x3a, 0x3a, 0xff},
-		speed:         160,
-		facing:        "down",
 	}
 
-	const pw, ph = 42, 24
-	s.player = &tiled.ColliderBox{X: 80, Y: 200, W: pw, H: ph}
-
-	if p, ok := m.Point("start"); ok {
-		s.player.X = p.X - pw/2
-		s.player.Y = p.Y - ph/2
+	lib := components.NewBlueprintLibrary(nil, "prototypes")
+	for _, placement := range m.Spawns() {
+		entity, spawnErr := lib.Spawn(placement.Blueprint, placement.X, placement.Y)
+		if spawnErr != nil {
+			return nil, fmt.Errorf("map spawn %q: %w", placement.Blueprint, spawnErr)
+		}
+		if placement.Blueprint == "playerChar" {
+			s.player = entity
+		}
 	}
+	if s.player == nil {
+		return nil, fmt.Errorf("map has no blueprint spawn for playerChar")
+	}
+	controller, ok := s.player.Get("playerController").(*democomponents.PlayerController)
+	if !ok {
+		return nil, fmt.Errorf("playerChar prototype requires playerController")
+	}
+	controller.SetSolids(m.Colliders())
 
 	cam := engine.NewCamera()
 	cam.SetBounds(float64(m.Width()), float64(m.Height()))
 	cam.SetViewport(640, 480)
-	cam.CenterOn(s.player.X+pw/2, s.player.Y+ph/2)
+	cam.CenterOn(s.player.Transform().X, s.player.Transform().Y)
 	s.Camera = cam
 
 	hs := hudStyle()
@@ -109,33 +113,28 @@ func NewDemoScene(mapPath string, mapScale float64) (*demoScene, error) {
 	hs5 := hudStyle()
 	s.hintLabel = text.NewTextString(hudHintLabel, 20, 80, hs5)
 	s.hintLabel.Show()
-
-	s.stateLabel = text.NewTextString("down", 0, 0, text.TextStyle{
-		FontName:    "mars",
-		ScaleX:      0.2,
-		ScaleY:      0.2,
-		FontHeight:  179,
-		LineSpacing: 4,
-		Color:       color.White,
-	})
-
 	return s, nil
 }
 
 func (s *demoScene) Update(dt time.Duration) {
 	s.input.Update()
 	queues.DefaultUpdateQueue.Execute(dt)
+	for _, key := range []struct {
+		code ebiten.Key
+		name string
+	}{{ebiten.KeyLeft, "left"}, {ebiten.KeyRight, "right"}, {ebiten.KeyUp, "up"}, {ebiten.KeyDown, "down"}} {
+		if s.input.JustPressed(key.code) {
+			democomponents.EmitInput(s.player, key.name, true)
+		}
+		if s.input.JustReleased(key.code) {
+			democomponents.EmitInput(s.player, key.name, false)
+		}
+	}
 
 	if !s.built {
 		s.built = true
 		if err := s.Map.BuildLayers(tiled.DefaultTilesetCache); err != nil {
 			log.Printf("tiled: prerender: %v", err)
-		}
-		icon, err := render.NewAnimatedIconFromPath("media/sprites/frisk", "down")
-		if err != nil {
-			log.Printf("frisk sprite: %v", err)
-		} else {
-			s.sprite = icon
 		}
 	}
 
@@ -143,20 +142,6 @@ func (s *demoScene) Update(dt time.Duration) {
 		text.DefaultDialog.Update(dt)
 		s.followCamera()
 		return
-	}
-
-	dx, dy := 0.0, 0.0
-	if s.input.IsPressed(ebiten.KeyLeft) {
-		dx -= 1
-	}
-	if s.input.IsPressed(ebiten.KeyRight) {
-		dx += 1
-	}
-	if s.input.IsPressed(ebiten.KeyUp) {
-		dy -= 1
-	}
-	if s.input.IsPressed(ebiten.KeyDown) {
-		dy += 1
 	}
 
 	if s.input.JustPressed(ebiten.Key1) {
@@ -172,42 +157,18 @@ func (s *demoScene) Update(dt time.Duration) {
 		s.setHintColor(s.hintArrow, s.ShowCamArrow)
 	}
 	if s.input.JustPressed(ebiten.Key5) {
-		s.ShowStateLabel = !s.ShowStateLabel
-		s.setHintColor(s.hintLabel, s.ShowStateLabel)
+		democomponents.ToggleIconStateLabel(s.player)
+		if label, ok := s.player.Get("iconStateLabel").(*democomponents.IconStateLabel); ok {
+			s.setHintColor(s.hintLabel, label.Visible())
+		}
 	}
 	if s.input.JustPressed(ebiten.Key3) {
 		s.setSmoothFollow(!s.Camera.Smooth())
 	}
 
-	seconds := dt.Seconds()
-	solids := s.Map.Colliders()
-
-	if dx != 0 || dy != 0 {
-		s.moveAxis(0, dx*s.speed*seconds, solids)
-		s.moveAxis(1, dy*s.speed*seconds, solids)
-	}
-
-	if s.sprite != nil {
-		switch {
-		case dx < 0:
-			s.facing = "left"
-		case dx > 0:
-			s.facing = "right"
-		case dy < 0:
-			s.facing = "up"
-		case dy > 0:
-			s.facing = "down"
-		}
-		state := s.facing
-		if dx != 0 || dy != 0 {
-			state += "_walk"
-		}
-		_ = s.sprite.SetIconState(state)
-		s.sprite.Update(dt)
-		if state != s.lastState {
-			s.lastState = state
-			s.stateLabel.SetText(state)
-		}
+	s.player.Update(dt)
+	if controller, ok := s.player.Get("playerController").(*democomponents.PlayerController); ok {
+		s.facing = controller.Facing()
 	}
 
 	if s.input.JustPressed(ebiten.KeyZ) || s.input.JustPressed(ebiten.KeyEnter) {
@@ -225,8 +186,8 @@ func (s *demoScene) Update(dt time.Duration) {
 
 func (s *demoScene) facedZone() *tiled.InteractionZone {
 	const reach = 12
-	p := s.player
-	probe := tiled.ColliderBox{X: p.X, Y: p.Y, W: p.W, H: p.H}
+	p := s.playerBox()
+	probe := p
 	switch s.facing {
 	case "up":
 		probe.Y -= reach
@@ -250,7 +211,13 @@ func (s *demoScene) facedZone() *tiled.InteractionZone {
 }
 
 func (s *demoScene) followCamera() {
-	s.Camera.CenterOn(s.player.X+s.player.W/2, s.player.Y+s.player.H/2)
+	t := s.player.Transform()
+	s.Camera.CenterOn(t.X, t.Y)
+}
+
+func (s *demoScene) playerBox() tiled.ColliderBox {
+	a := s.player.Hitbox().AABB()
+	return tiled.ColliderBox{X: a.X, Y: a.Y, W: a.W, H: a.H}
 }
 
 // setSmoothFollow toggles tweened camera transitions and recolors the follow
@@ -275,62 +242,17 @@ func (s *demoScene) setHintColor(ts *text.TextString, active bool) {
 	ts.SetText(ts.Text)
 }
 
-func (s *demoScene) moveAxis(axis int, delta float64, solids []*tiled.ColliderBox) {
-	if axis == 0 {
-		s.player.X += delta
-		for _, c := range solids {
-			if !s.player.Overlaps(c) {
-				continue
-			}
-			if delta > 0 {
-				s.player.X = c.X - s.player.W
-			} else if delta < 0 {
-				s.player.X = c.X + c.W
-			}
-		}
-		return
-	}
-
-	s.player.Y += delta
-	for _, c := range solids {
-		if !s.player.Overlaps(c) {
-			continue
-		}
-		if delta > 0 {
-			s.player.Y = c.Y - s.player.H
-		} else if delta < 0 {
-			s.player.Y = c.Y + c.H
-		}
-	}
-}
-
 func (s *demoScene) Draw(screen *ebiten.Image) {
 	screen.Fill(s.BgColor)
 	s.Camera.Apply(screen, func(target *ebiten.Image, sx, sy float64) {
 		s.Map.DrawLayers(target, sx, sy)
 
-		b := s.player
-		if s.sprite != nil && s.sprite.CurrentState != nil && len(s.sprite.CurrentState.Frames) > 0 {
-			m := s.Map.Scale()
-			frame := s.sprite.CurrentState.Frames[s.sprite.CurrentState.CurrentFrame].Image
-			if frame != nil {
-				fb := frame.Bounds()
-				fw := float64(fb.Dx()) * m
-				fh := float64(fb.Dy()) * m
-				x := b.X + sx + (b.W-fw)/2
-				y := b.Y + sy + b.H - fh
-				s.sprite.Draw(target, x, y, m, m, 0)
-			}
-		} else {
-			vector.DrawFilledRect(target,
-				float32(b.X+sx), float32(b.Y+sy), float32(b.W), float32(b.H),
-				s.color, true)
-		}
-
-		if s.ShowStateLabel && s.stateLabel != nil {
-			s.stateLabel.SetPosition(b.X+b.W+6+sx, b.Y-50+sy)
-			s.stateLabel.Draw(target)
-		}
+		transform := s.player.Transform()
+		transform.X += sx
+		transform.Y += sy
+		s.player.Draw(target)
+		transform.X -= sx
+		transform.Y -= sy
 
 		if s.ShowZones {
 			for _, z := range s.Map.Interactions() {
@@ -375,7 +297,8 @@ func (s *demoScene) drawCamArrow(target *ebiten.Image, sx, sy float64) {
 	clr := color.RGBA{0x40, 0xff, 0x40, 0xff}
 
 	fromX, fromY := s.Camera.X+sx, s.Camera.Y+sy
-	toX, toY := s.player.X+s.player.W/2+sx, s.player.Y+s.player.H/2+sy
+	t := s.player.Transform()
+	toX, toY := t.X+sx, t.Y+sy
 
 	vector.StrokeLine(target,
 		float32(fromX-cross), float32(fromY), float32(fromX+cross), float32(fromY),

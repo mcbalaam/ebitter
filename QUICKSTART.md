@@ -66,15 +66,27 @@ it defaults to `os.DirFS(".")`. To ship assets with the binary, embed them and
 point `assetfs` at the embed:
 
 ```go
-import "embed"
+import (
+	"embed"
+
+	"github.com/mcbalaam/ebitter/assetfs"
+	"github.com/mcbalaam/ebitter/components"
+	"github.com/mcbalaam/ebitter/text"
+)
 
 //go:embed media
 var Media embed.FS
 
 func init() {
 	assetfs.SetFS(Media)
+	components.SpriteRoot = "media/sprites"
+	text.FontRoot = "media/sprites"
 }
 ```
+
+`Media` is defined by your application, not by ebitter. The library does not
+bundle a default game asset directory. If you use blueprint `sprite` components
+or the `text` package, configure their asset roots for your own layout as shown.
 
 All paths passed to loaders (Tiled, Aseprite, sound) are relative to this
 filesystem, e.g. `media/maps/ruins.tmx`.

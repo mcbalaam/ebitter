@@ -1,0 +1,9 @@
+id: playerChar
+layer: entity
+tags: [player]
+components:
+  transform: { x: 80, y: 200, scale: 2 }
+  sprite: { icon: frisk, state: down, anchor: [0.5, 1.0], offset: [0, 12] }
+  hitbox: { w: 21, h: 12, layer: player }
+  playerController: { speed: 160 }
+  iconStateLabel: {}

@@ -133,12 +133,39 @@ id: bad
 components:
   nope: {}
 `
-	bp, err := LoadBlueprint(strings.NewReader(doc))
-	if err != nil {
-		t.Fatalf("LoadBlueprint: %v", err)
+	if _, err := LoadBlueprint(strings.NewReader(doc)); err == nil {
+		t.Fatal("expected error for unknown component during blueprint validation")
 	}
-	if _, err := bp.Instantiate(); err == nil {
-		t.Fatal("expected error for unknown component")
+}
+
+func TestBlueprintValidatesComponentConfigAtLoad(t *testing.T) {
+	const doc = `
+id: bad-config
+components:
+  velocity: { x: 1, surprise: true }
+`
+	if _, err := LoadBlueprint(strings.NewReader(doc)); err == nil || !strings.Contains(err.Error(), "components.velocity") {
+		t.Fatalf("LoadBlueprint error = %v, want component config path", err)
+	}
+	const wrongType = `id: bad-type
+components:
+  velocity: { x: fast }
+`
+	if _, err := LoadBlueprint(strings.NewReader(wrongType)); err == nil {
+		t.Fatal("expected invalid component value to fail during blueprint validation")
+	}
+	const wrongVector = `id: bad-vector
+components:
+  sprite: { anchor: [0.5] }
+`
+	if _, err := LoadBlueprint(strings.NewReader(wrongVector)); err == nil {
+		t.Fatal("expected malformed vector to fail during blueprint validation")
+	}
+	const unknownTopLevel = `id: bad-root
+componnets: {}
+`
+	if _, err := LoadBlueprint(strings.NewReader(unknownTopLevel)); err == nil {
+		t.Fatal("expected unknown blueprint field to fail during load")
 	}
 }
 

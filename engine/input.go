@@ -6,24 +6,37 @@ import (
 )
 
 type Input struct {
-	justPressed map[ebiten.Key]struct{}
+	justPressed  map[ebiten.Key]struct{}
+	justReleased map[ebiten.Key]struct{}
 }
 
 func NewInput() *Input {
-	return &Input{justPressed: make(map[ebiten.Key]struct{})}
+	return &Input{justPressed: make(map[ebiten.Key]struct{}), justReleased: make(map[ebiten.Key]struct{})}
 }
 
 func (in *Input) Update() {
 	for k := range in.justPressed {
 		delete(in.justPressed, k)
 	}
+	for k := range in.justReleased {
+		delete(in.justReleased, k)
+	}
 	for _, k := range inpututil.AppendJustPressedKeys(nil) {
 		in.justPressed[k] = struct{}{}
+	}
+	for _, k := range inpututil.AppendJustReleasedKeys(nil) {
+		in.justReleased[k] = struct{}{}
 	}
 }
 
 func (in *Input) JustPressed(key ebiten.Key) bool {
 	_, ok := in.justPressed[key]
+	return ok
+}
+
+// JustReleased reports whether key was released during the current update.
+func (in *Input) JustReleased(key ebiten.Key) bool {
+	_, ok := in.justReleased[key]
 	return ok
 }
 

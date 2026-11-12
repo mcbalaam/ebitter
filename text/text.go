@@ -15,8 +15,8 @@ import (
 
 var (
 	// FontRoot is the assetfs directory fonts are loaded from. Each font is a
-	// subdirectory in Aseprite format; override for a different layout.
-	FontRoot = "media/sprites"
+	// subdirectory in Aseprite format; the application must configure it.
+	FontRoot string
 	// Filter is the draw filter used for glyphs and baked text strings.
 	Filter = ebiten.FilterNearest
 )

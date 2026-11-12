@@ -9,8 +9,8 @@ import (
 )
 
 // SpriteRoot is the assetfs directory sprite icons are loaded from when a
-// blueprint refers to a sprite by name. Override it for a different layout.
-var SpriteRoot = "media/sprites"
+// blueprint refers to a sprite by name. The application must configure it.
+var SpriteRoot string
 
 // Sprite draws the entity's animated icon at the transform position.
 type Sprite struct {

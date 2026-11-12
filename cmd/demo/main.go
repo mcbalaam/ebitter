@@ -1,18 +1,28 @@
 package main
 
 import (
+	"embed"
 	"log"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/mcbalaam/ebitter"
 	"github.com/mcbalaam/ebitter/assetfs"
+	"github.com/mcbalaam/ebitter/cmd/demo/scenes"
+	"github.com/mcbalaam/ebitter/components"
 	"github.com/mcbalaam/ebitter/queues"
 	"github.com/mcbalaam/ebitter/scene"
+	"github.com/mcbalaam/ebitter/text"
 )
 
+//go:embed media prototypes
+var demoMedia embed.FS
+
+//go:generate go run ../fontgen -fonts media/fonts -output media/sprites
+
 func init() {
-	assetfs.SetFS(ebitter.Media)
+	assetfs.SetFS(demoMedia)
+	components.SpriteRoot = "media/sprites"
+	text.FontRoot = "media/sprites"
 }
 
 type Game struct {
@@ -38,10 +48,10 @@ func main() {
 	ebiten.SetWindowTitle("Undebitter")
 
 	game := &Game{sm: &scene.SceneManager{}}
-	if err := initDialogAudio(); err != nil {
+	if err := scenes.InitDialogAudio(); err != nil {
 		log.Printf("dialog audio: %v", err)
 	}
-	mapScene, err := NewDemoScene("media/maps/ruins.tmx", 2)
+	mapScene, err := scenes.NewDemoScene("media/maps/ruins.tmx", 2)
 	if err != nil {
 		log.Fatalf("map: %v", err)
 	}

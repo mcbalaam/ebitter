@@ -1,4 +1,4 @@
-package main
+package scenes
 
 import (
 	"image/color"
@@ -15,31 +15,6 @@ type demoDialog struct {
 }
 
 var demoDialogs = map[string]demoDialog{
-	// "sign_floor": {
-	// 	sound: sndText,
-	// 	phrases: []string{
-	// 		"* (An old, worn sign lies on the floor.)",
-	// 		"* (Most of the letters have faded away...)",
-	// 		"* (...but you can still make out$n  the word $cffd83a\"RUINS\"$cffffff.)",
-	// 	},
-	// },
-	// "froggit_left": {
-	// 	sound: sndText,
-	// 	phrases: []string{
-	// 		"* Ribbit, ribbit.",
-	// 		"* (The froggit stares at you,$n  visibly judging your outfit.)",
-	// 		"* (It seems unimpressed.)",
-	// 		"* (You feel $cff3a3aDETERMINATION$cffffff anyway.)",
-	// 	},
-	// },
-	// "froggit_right": {
-	// 	sound: sndText,
-	// 	phrases: []string{
-	// 		"* Ribbit! Ribbit!",
-	// 		"* (The froggit hops in place,$n  completely unbothered.)",
-	// 		"* (What a happy little guy.)",
-	// 	},
-	// },
 	"sign_wall": {
 		sound: sndText,
 		phrases: []string{
@@ -51,7 +26,7 @@ var demoDialogs = map[string]demoDialog{
 
 const sndText = "snd_text"
 
-func initDialogAudio() error {
+func InitDialogAudio() error {
 	player, err := sound.NewSoundPlayer(44100)
 	if err != nil {
 		return err
@@ -61,9 +36,8 @@ func initDialogAudio() error {
 	}
 	text.DefaultDialog.SoundPlayer = player
 	text.DefaultDialog.CharSoundVolume = 0.5
-	// Subtle per-character pitch variation, Undertale-style.
-	text.DefaultDialog.CharPitchMin = 0.85
-	text.DefaultDialog.CharPitchMax = 1.2
+	text.DefaultDialog.CharPitchMin = 1.0
+	text.DefaultDialog.CharPitchMax = 1.0
 	return nil
 }
 
@@ -84,7 +58,7 @@ var dialogStyle = text.TextStyle{
 	ScaleY:       0.25,
 	FontHeight:   130,
 	LineSpacing:  10,
-	DefaultDelay: 0.035,
+	DefaultDelay: 0.03,
 	Color:        color.White,
 	CharWidths:   map[string]int{" ": 60},
 }

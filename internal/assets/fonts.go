@@ -96,14 +96,16 @@ func alreadyProcessed(dir, name string) bool {
 	return true
 }
 
-func ProcessFonts() {
-	outputDir := "media/sprites/"
-	os.MkdirAll(outputDir, 0755)
-
-	files, err := os.ReadDir("media/fonts")
+// ProcessFonts converts every TTF in inputDir to an Aseprite-style spritesheet
+// in outputDir. Paths are supplied by the caller so this library utility has no
+// dependency on a particular game's asset layout.
+func ProcessFonts(inputDir, outputDir string) error {
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return err
+	}
+	files, err := os.ReadDir(inputDir)
 	if err != nil {
-		fmt.Printf("Error reading folder: %v\n", err)
-		return
+		return fmt.Errorf("read font directory %q: %w", inputDir, err)
 	}
 
 	var wg sync.WaitGroup
@@ -115,7 +117,7 @@ func ProcessFonts() {
 			continue
 		}
 
-		fontPath := filepath.Join("media/fonts", file.Name())
+		fontPath := filepath.Join(inputDir, file.Name())
 		fontName := strings.TrimSuffix(file.Name(), ".ttf")
 		fontOutputDir := filepath.Join(outputDir, fontName)
 
@@ -145,6 +147,7 @@ func ProcessFonts() {
 	}
 
 	wg.Wait()
+	return nil
 }
 
 const (
