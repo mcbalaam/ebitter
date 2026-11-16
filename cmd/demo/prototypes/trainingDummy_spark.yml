@@ -1,0 +1,8 @@
+id: trainingDummy_spark
+components:
+  transform:
+    scale: 1
+  projectile:
+    damage: 3
+    owner: enemy
+    lifetimeMS: 3000

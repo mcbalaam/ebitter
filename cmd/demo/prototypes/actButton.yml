@@ -1,0 +1,10 @@
+id: actButton
+layer: ui
+components:
+  transform:
+    x: 186
+    y: 431
+  sprite:
+    icon: battle_menu/act
+    state: off
+  battleButton: {}

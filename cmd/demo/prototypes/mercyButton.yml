@@ -1,0 +1,10 @@
+id: mercyButton
+layer: ui
+components:
+  transform:
+    x: 500
+    y: 431
+  sprite:
+    icon: battle_menu/mercy
+    state: off
+  battleButton: {}

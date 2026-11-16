@@ -1,0 +1,38 @@
+{
+  "frames": {
+    "off.aseprite": {
+      "frame": {
+        "x": 0,
+        "y": 1,
+        "w": 110,
+        "h": 42
+      },
+      "duration": 100
+    },
+    "on.aseprite": {
+      "frame": {
+        "x": 0,
+        "y": 45,
+        "w": 110,
+        "h": 42
+      },
+      "duration": 100
+    }
+  },
+  "meta": {
+    "frameTags": [
+      {
+        "name": "off",
+        "from": 0,
+        "to": 0,
+        "direction": "forward"
+      },
+      {
+        "name": "on",
+        "from": 1,
+        "to": 1,
+        "direction": "forward"
+      }
+    ]
+  }
+}

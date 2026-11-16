@@ -1,0 +1,10 @@
+id: fightButton
+layer: ui
+components:
+  transform:
+    x: 32
+    y: 431
+  sprite:
+    icon: battle_menu/fight
+    state: off
+  battleButton: {}

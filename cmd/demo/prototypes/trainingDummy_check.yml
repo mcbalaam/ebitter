@@ -1,0 +1,6 @@
+id: trainingDummy_check
+components:
+  battleAction:
+    name: Check
+    target: enemy
+    effects: []

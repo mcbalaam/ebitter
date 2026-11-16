@@ -1,0 +1,21 @@
+id: trainingDummy
+layer: entity
+tags: [enemy]
+components:
+  transform:
+    x: 320
+    y: 150
+  combatant:
+    hp: 20
+    maxHP: 20
+    defense: 0
+  enemyController:
+    lines:
+      - The training dummy waits patiently.
+      - The training dummy is still waiting.
+    actions:
+      - trainingDummy_check
+    attacks:
+      - trainingDummy_slowShot
+    canBeSpared: true
+    canFlee: false

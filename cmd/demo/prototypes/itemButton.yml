@@ -1,0 +1,10 @@
+id: itemButton
+layer: ui
+components:
+  transform:
+    x: 346
+    y: 431
+  sprite:
+    icon: battle_menu/item
+    state: off
+  battleButton: {}

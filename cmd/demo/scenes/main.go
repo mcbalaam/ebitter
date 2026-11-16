@@ -3,331 +3,291 @@ package scenes
 import (
 	"fmt"
 	"image/color"
-	"log"
+	"image/png"
 	"math"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"github.com/mcbalaam/ebitter/assetfs"
 	democomponents "github.com/mcbalaam/ebitter/cmd/demo/components"
 	"github.com/mcbalaam/ebitter/components"
-	"github.com/mcbalaam/ebitter/engine"
+	"github.com/mcbalaam/ebitter/queues"
+	"github.com/mcbalaam/ebitter/render"
 	"github.com/mcbalaam/ebitter/scene"
-	"github.com/mcbalaam/ebitter/text"
-	"github.com/mcbalaam/ebitter/tiled"
+	"github.com/mcbalaam/ebitter/tween"
 )
 
 type demoScene struct {
-	Map           *tiled.GameMap
-	Camera        *engine.Camera
-	BgColor       color.Color
-	ShowColliders bool
-	ShowZones     bool
-	ShowCamArrow  bool
-
-	input         *engine.Input
-	runtime       *scene.Runtime
-	player        *components.Entity
-	built         bool
-	hintSmooth    *text.TextString
-	hintColliders *text.TextString
-	hintZones     *text.TextString
-	hintArrow     *text.TextString
-	hintLabel     *text.TextString
-	facing        string
+	runtime        *scene.Runtime
+	preview        *ebiten.Image
+	buttons        map[string]*components.Entity
+	buttonNames    []string
+	selectedButton int
+	menuActive     bool
+	menuConfirmed  bool
+	soul           *render.AnimatedIcon
+	soulX, soulY   float64
+	input          *demoInput
 }
 
-const (
-	hudHintFollow    = "3 to toggle smooth camera"
-	hudHintColliders = "1 to toggle hitboxes"
-	hudHintZones     = "2 to toggle interaction zones"
-	hudHintArrow     = "4 to toggle camera debug"
-	hudHintLabel     = "5 to toggle state label"
-)
+type demoInput struct {
+	pressed   map[ebiten.Key]bool
+	justPress map[ebiten.Key]bool
+}
 
-var hudHintColor = color.RGBA{0xff, 0xff, 0xff, 0xff}
-var hudHintActiveColor = color.RGBA{0xff, 0xd0, 0x3a, 0xff}
+func newDemoInput() *demoInput {
+	return &demoInput{pressed: make(map[ebiten.Key]bool), justPress: make(map[ebiten.Key]bool)}
+}
 
-func hudStyle() text.TextStyle {
-	return text.TextStyle{
-		FontName:    "mars",
-		ScaleX:      0.25,
-		ScaleY:      0.25,
-		FontHeight:  130,
-		LineSpacing: 10,
-		Color:       hudHintColor,
-		CharWidths:  map[string]int{" ": 60},
+func (i *demoInput) Update() {
+	clear(i.justPress)
+	for _, key := range inpututil.AppendJustPressedKeys(nil) {
+		i.justPress[key] = true
+	}
+	for _, key := range []ebiten.Key{
+		ebiten.KeyArrowLeft, ebiten.KeyArrowRight, ebiten.KeyArrowUp, ebiten.KeyArrowDown,
+		ebiten.KeyZ, ebiten.KeyX,
+	} {
+		i.pressed[key] = ebiten.IsKeyPressed(key)
 	}
 }
 
-func NewDemoScene(mapPath string, mapScale float64) (*demoScene, error) {
-	m, err := tiled.LoadMapSpecScaled(mapPath, tiled.DefaultTilesetCache, mapScale)
-	if err != nil {
-		return nil, err
+func (i *demoInput) justPressed(key ebiten.Key) bool {
+	return i.justPress[key]
+}
+
+type BattleBox struct {
+	corners [4]tween.Vec2 // top-left, top-right, bottom-right, bottom-left
+	stroke  float32
+	color   color.Color
+	updates *queues.UpdateQueue
+	resize  *tween.Tween[[4]tween.Vec2]
+}
+
+func NewBattleBox(x, y, width, height float64, updates *queues.UpdateQueue) *BattleBox {
+	return &BattleBox{
+		corners: [4]tween.Vec2{{X: x, Y: y}, {X: x + width, Y: y}, {X: x + width, Y: y + height}, {X: x, Y: y + height}},
+		stroke:  5,
+		color:   color.White,
+		updates: updates,
+	}
+}
+
+func (b *BattleBox) Type() string { return "battleBox" }
+
+// Resize tweens all four corners from their current positions to the supplied
+// top-left, top-right, bottom-right, and bottom-left positions.
+func (b *BattleBox) Resize(topLeft, topRight, bottomRight, bottomLeft tween.Vec2, duration time.Duration) {
+	if b.resize != nil {
+		tween.Stop(b.resize)
+	}
+	to := [4]tween.Vec2{topLeft, topRight, bottomRight, bottomLeft}
+	if duration <= 0 {
+		b.corners = to
+		return
+	}
+	from := b.corners
+	lerp := func(a, z [4]tween.Vec2, t float64) [4]tween.Vec2 {
+		var out [4]tween.Vec2
+		for i := range out {
+			out[i] = tween.Vec2{X: a[i].X + (z[i].X-a[i].X)*t, Y: a[i].Y + (z[i].Y-a[i].Y)*t}
+		}
+		return out
+	}
+	b.resize = tween.New(from, to, duration, func(corners [4]tween.Vec2) {
+		b.corners = corners
+	}, lerp).SetEasing(tween.EaseInOutCubic).ScheduleOn(b.updates)
+}
+
+func (b *BattleBox) Draw(_ *components.Entity, screen *ebiten.Image) {
+	// Draw axis-aligned boxes as four joined filled strips. Unlike a stroked
+	// path, this produces square, pixel-aligned joins at every corner.
+	if b.corners[0].Y == b.corners[1].Y &&
+		b.corners[1].X == b.corners[2].X &&
+		b.corners[2].Y == b.corners[3].Y &&
+		b.corners[3].X == b.corners[0].X {
+		left, top := b.corners[0].X, b.corners[0].Y
+		right, bottom := b.corners[2].X, b.corners[2].Y
+		width, height := right-left, bottom-top
+		stroke := float64(b.stroke)
+		vector.DrawFilledRect(screen, float32(left), float32(top), float32(width), float32(stroke), b.color, false)
+		vector.DrawFilledRect(screen, float32(left), float32(bottom-stroke), float32(width), float32(stroke), b.color, false)
+		vector.DrawFilledRect(screen, float32(left), float32(top+stroke), float32(stroke), float32(height-2*stroke), b.color, false)
+		vector.DrawFilledRect(screen, float32(right-stroke), float32(top+stroke), float32(stroke), float32(height-2*stroke), b.color, false)
+		return
 	}
 
+	var outline vector.Path
+	outline.MoveTo(float32(b.corners[0].X), float32(b.corners[0].Y))
+	for _, point := range b.corners[1:] {
+		outline.LineTo(float32(point.X), float32(point.Y))
+	}
+	outline.Close()
+	vector.StrokePath(screen, &outline,
+		&vector.StrokeOptions{Width: b.stroke, LineJoin: vector.LineJoinMiter},
+		&vector.DrawPathOptions{AntiAlias: false})
+}
+
+func NewDemoScene() (*demoScene, error) {
 	s := &demoScene{
-		Map:           m,
-		BgColor:       color.Black,
-		ShowColliders: false,
-		ShowZones:     false,
-		input:         engine.NewInput(),
-		runtime:       scene.NewRuntime(),
+		runtime: scene.NewRuntime(), buttons: make(map[string]*components.Entity),
+		buttonNames: []string{"fightButton", "actButton", "itemButton", "mercyButton"},
+		input:       newDemoInput(),
 	}
-	if err := initDialogAudio(s.runtime.Dialog); err != nil {
-		log.Printf("dialog audio: %v", err)
+	previewFile, err := assetfs.FS.Open("media/sprites/preview.png")
+	if err != nil {
+		return nil, fmt.Errorf("open interface preview: %w", err)
 	}
+	previewSource, decodeErr := png.Decode(previewFile)
+	closeErr := previewFile.Close()
+	if decodeErr != nil {
+		return nil, fmt.Errorf("decode interface preview: %w", decodeErr)
+	}
+	if closeErr != nil {
+		return nil, fmt.Errorf("close interface preview: %w", closeErr)
+	}
+	s.preview = ebiten.NewImageFromImage(previewSource)
+	s.preview.Clear()
+	s.soul, err = render.NewAnimatedIconFromPath("media/sprites/soul", "idle")
+	if err != nil {
+		return nil, fmt.Errorf("load soul sprite: %w", err)
+	}
+	s.selectedButton = 0
 
-	lib := components.NewBlueprintLibrary(nil, "prototypes")
-	for _, placement := range m.Spawns() {
-		entity, spawnErr := lib.SpawnWith(placement.Blueprint, placement.X, placement.Y, s.runtime.Signals, s.runtime.Queues)
-		if spawnErr != nil {
-			return nil, fmt.Errorf("map spawn %q: %w", placement.Blueprint, spawnErr)
+	box := components.NewEntity("battleBox")
+	box.Layer = queues.LayerArena
+	box.Queues = s.runtime.Queues
+	box.Add(NewBattleBox(32, 250, 576, 140, s.runtime.Queues.Update))
+	box.Schedule()
+
+	buttonLibrary := components.NewBlueprintLibrary(nil, "prototypes")
+	buttons := []string{"actButton", "fightButton", "itemButton", "mercyButton"}
+	for _, button := range buttons {
+		blueprint, err := buttonLibrary.Load(button)
+		if err != nil {
+			return nil, fmt.Errorf("load %s prototype: %w", button, err)
 		}
-		if placement.Blueprint == "playerChar" {
-			s.player = entity
+		entity, err := blueprint.InstantiateWith(s.runtime.Signals, s.runtime.Queues)
+		if err != nil {
+			return nil, fmt.Errorf("instantiate %s: %w", button, err)
 		}
+		entity.Schedule()
+		s.buttons[button] = entity
 	}
-	if s.player == nil {
-		return nil, fmt.Errorf("map has no blueprint spawn for playerChar")
-	}
-	controller, ok := s.player.Get("playerController").(*democomponents.PlayerController)
-	if !ok {
-		return nil, fmt.Errorf("playerChar prototype requires playerController")
-	}
-	controller.SetSolids(m.Colliders())
-
-	cam := engine.NewCamera()
-	cam.SetUpdateQueue(s.runtime.Queues.Update)
-	cam.SetBounds(float64(m.Width()), float64(m.Height()))
-	cam.SetViewport(640, 480)
-	cam.CenterOn(s.player.Transform().X, s.player.Transform().Y)
-	s.Camera = cam
-
-	s.hintSmooth = s.newHUDText(hudHintFollow, 20, 40)
-	s.hintColliders = s.newHUDText(hudHintColliders, 20, 0)
-	s.hintZones = s.newHUDText(hudHintZones, 20, 20)
-	s.hintArrow = s.newHUDText(hudHintArrow, 20, 60)
-	s.hintLabel = s.newHUDText(hudHintLabel, 20, 80)
+	s.syncButtonSelection()
 	return s, nil
+}
+
+// SetButtonActive changes one of the prototype-created buttons via its signal.
+// Names are actButton, fightButton, itemButton, and mercyButton.
+func (s *demoScene) SetButtonActive(name string, active bool) error {
+	button, ok := s.buttons[name]
+	if !ok {
+		return fmt.Errorf("battle button %q not found", name)
+	}
+	democomponents.SetBattleButtonActive(button, active)
+	return nil
 }
 
 func (s *demoScene) Runtime() *scene.Runtime { return s.runtime }
 func (s *demoScene) Pause()                  { s.runtime.Queues.Pause() }
 func (s *demoScene) Resume()                 { s.runtime.Queues.Resume() }
 
-func (s *demoScene) newHUDText(value string, x, y float64) *text.TextString {
-	ts := text.NewTextString(value, x, y, hudStyle())
-	ts.Queues = s.runtime.Queues
-	ts.Show()
-	return ts
-}
-
 func (s *demoScene) Update(dt time.Duration) {
 	s.input.Update()
-	s.runtime.Queues.ExecuteUpdate(dt)
-	s.runtime.Queues.ExecuteDelete()
-	for _, key := range []struct {
-		code ebiten.Key
-		name string
-	}{{ebiten.KeyLeft, "left"}, {ebiten.KeyRight, "right"}, {ebiten.KeyUp, "up"}, {ebiten.KeyDown, "down"}} {
-		if s.input.JustPressed(key.code) {
-			democomponents.EmitInput(s.player, key.name, true)
-		}
-		if s.input.JustReleased(key.code) {
-			democomponents.EmitInput(s.player, key.name, false)
-		}
-	}
-
-	if !s.built {
-		s.built = true
-		if err := s.Map.BuildLayers(tiled.DefaultTilesetCache); err != nil {
-			log.Printf("tiled: prerender: %v", err)
-		}
-	}
-
 	if s.runtime.Dialog.Active() {
 		s.runtime.Dialog.Update(dt)
-		s.followCamera()
 		return
 	}
-
-	if s.input.JustPressed(ebiten.Key1) {
-		s.ShowColliders = !s.ShowColliders
-		s.setHintColor(s.hintColliders, s.ShowColliders)
-	}
-	if s.input.JustPressed(ebiten.Key2) {
-		s.ShowZones = !s.ShowZones
-		s.setHintColor(s.hintZones, s.ShowZones)
-	}
-	if s.input.JustPressed(ebiten.Key4) {
-		s.ShowCamArrow = !s.ShowCamArrow
-		s.setHintColor(s.hintArrow, s.ShowCamArrow)
-	}
-	if s.input.JustPressed(ebiten.Key5) {
-		democomponents.ToggleIconStateLabel(s.player)
-		if label, ok := s.player.Get("iconStateLabel").(*democomponents.IconStateLabel); ok {
-			s.setHintColor(s.hintLabel, label.Visible())
-		}
-	}
-	if s.input.JustPressed(ebiten.Key3) {
-		s.setSmoothFollow(!s.Camera.Smooth())
-	}
-
-	s.player.Update(dt)
-	if controller, ok := s.player.Get("playerController").(*democomponents.PlayerController); ok {
-		s.facing = controller.Facing()
-	}
-
-	if s.input.JustPressed(ebiten.KeyZ) || s.input.JustPressed(ebiten.KeyEnter) {
-		if zone := s.facedZone(); zone != nil {
-			if d, ok := demoDialogs[zone.Name]; ok {
-				for _, phrase := range d.phrases {
-					s.runtime.Dialog.Show(phrase, dialogStyle, d.sound)
-				}
-			}
-		}
-	}
-
-	s.followCamera()
+	s.updateSoul(dt)
+	s.runtime.Queues.ExecuteUpdate(dt)
+	s.runtime.Queues.ExecuteDelete()
 }
 
-func (s *demoScene) facedZone() *tiled.InteractionZone {
-	const reach = 12
-	p := s.playerBox()
-	probe := p
-	switch s.facing {
-	case "up":
-		probe.Y -= reach
-		probe.H = reach
-	case "down":
-		probe.Y += p.H
-		probe.H = reach
-	case "left":
-		probe.X -= reach
-		probe.W = reach
-	case "right":
-		probe.X += p.W
-		probe.W = reach
-	}
-	for _, zone := range s.Map.Interactions() {
-		if zone.Rect.Overlaps(&probe) {
-			return zone
-		}
-	}
-	return nil
-}
-
-func (s *demoScene) followCamera() {
-	t := s.player.Transform()
-	s.Camera.CenterOn(t.X, t.Y)
-}
-
-func (s *demoScene) playerBox() tiled.ColliderBox {
-	a := s.player.Hitbox().AABB()
-	return tiled.ColliderBox{X: a.X, Y: a.Y, W: a.W, H: a.H}
-}
-
-// setSmoothFollow toggles tweened camera transitions and recolors the follow
-// hint yellow while smooth mode is active.
-func (s *demoScene) setSmoothFollow(on bool) {
-	s.Camera.SetSmooth(on)
-	s.setHintColor(s.hintSmooth, on)
-}
-
-// setHintColor highlights a debug hint yellow while its mode is active. The
-// hint image is baked at load time, so recoloring forces a re-bake via
-// SetText; unchanged colors are skipped.
-func (s *demoScene) setHintColor(ts *text.TextString, active bool) {
-	clr := color.Color(hudHintColor)
-	if active {
-		clr = color.Color(hudHintActiveColor)
-	}
-	if ts.Style.Color == clr {
+func (s *demoScene) updateSoul(dt time.Duration) {
+	const (
+		buttonY   = 475.0
+		boxLeft   = 39.0
+		boxTop    = 257.0
+		boxRight  = 601.0
+		boxBottom = 383.0
+		speed     = 160.0
+	)
+	if s.soul == nil {
 		return
 	}
-	ts.Style.Color = clr
-	ts.SetText(ts.Text)
+	if !s.menuActive {
+		if s.input.justPressed(ebiten.KeyArrowLeft) {
+			s.selectedButton--
+		}
+		if s.input.justPressed(ebiten.KeyArrowRight) {
+			s.selectedButton++
+		}
+		if s.selectedButton < 0 {
+			s.selectedButton = len(s.buttonNames) - 1
+		}
+		if s.selectedButton >= len(s.buttonNames) {
+			s.selectedButton = 0
+		}
+		button := s.buttons[s.buttonNames[s.selectedButton]]
+		if button != nil && button.Transform() != nil {
+			s.soulX = button.Transform().X + 16
+			s.soulY = buttonY - 22
+		}
+		s.syncButtonSelection()
+		if s.input.justPressed(ebiten.KeyZ) {
+			s.menuActive = true
+			s.menuConfirmed = false
+			s.soulX = boxLeft + 18
+			s.soulY = (boxTop + boxBottom) / 2
+		}
+	} else {
+		delta := speed * dt.Seconds()
+		if s.input.pressed[ebiten.KeyArrowLeft] || s.input.justPressed(ebiten.KeyArrowLeft) {
+			s.soulX -= delta
+		}
+		if s.input.pressed[ebiten.KeyArrowRight] || s.input.justPressed(ebiten.KeyArrowRight) {
+			s.soulX += delta
+		}
+		if s.input.pressed[ebiten.KeyArrowUp] || s.input.justPressed(ebiten.KeyArrowUp) {
+			s.soulY -= delta
+		}
+		if s.input.pressed[ebiten.KeyArrowDown] || s.input.justPressed(ebiten.KeyArrowDown) {
+			s.soulY += delta
+		}
+		s.soulX = math.Max(boxLeft+8, math.Min(boxRight-8, s.soulX))
+		s.soulY = math.Max(boxTop+8, math.Min(boxBottom-8, s.soulY))
+		if s.input.justPressed(ebiten.KeyZ) {
+			s.menuConfirmed = true
+		}
+		if s.input.justPressed(ebiten.KeyX) {
+			s.menuActive = false
+			s.menuConfirmed = false
+			s.syncButtonSelection()
+		}
+	}
+	s.soul.Update(dt)
+}
+
+func (s *demoScene) syncButtonSelection() {
+	for i, name := range s.buttonNames {
+		if button := s.buttons[name]; button != nil {
+			democomponents.SetBattleButtonActive(button, i == s.selectedButton && !s.menuActive)
+		}
+	}
 }
 
 func (s *demoScene) Draw(screen *ebiten.Image) {
-	screen.Fill(s.BgColor)
-	s.Camera.Apply(screen, func(target *ebiten.Image, sx, sy float64) {
-		s.Map.DrawLayers(target, sx, sy)
-
-		transform := s.player.Transform()
-		transform.X += sx
-		transform.Y += sy
-		s.player.Draw(target)
-		transform.X -= sx
-		transform.Y -= sy
-
-		if s.ShowZones {
-			for _, z := range s.Map.Interactions() {
-				clr := color.RGBA{0x3a, 0xb8, 0xff, 0x60}
-				if z.Trigger == tiled.TriggerButton {
-					clr = color.RGBA{0xff, 0xd0, 0x3a, 0x60}
-				}
-				vector.DrawFilledRect(target,
-					float32(z.Rect.X+sx), float32(z.Rect.Y+sy), float32(z.Rect.W), float32(z.Rect.H),
-					clr, false)
-			}
-		}
-
-		if s.ShowColliders {
-			for _, c := range s.Map.Colliders() {
-				vector.StrokeRect(target,
-					float32(c.X+sx), float32(c.Y+sy), float32(c.W), float32(c.H),
-					2, color.RGBA{0xff, 0x40, 0x40, 0xc0}, true)
-			}
-		}
-
-		if s.ShowCamArrow {
-			s.drawCamArrow(target, sx, sy)
-		}
-	})
-
-	if s.runtime.Dialog.Active() {
-		drawTextbox(screen)
-	}
+	screen.Fill(color.Black)
 	s.runtime.Queues.ExecuteDraw(screen)
-}
-
-// drawCamArrow renders a debug arrow from the camera center (the true
-// on-screen center, kept clamped by the camera itself) to the player's hitbox
-// center, plus a cross marking that point.
-func (s *demoScene) drawCamArrow(target *ebiten.Image, sx, sy float64) {
-	const (
-		stroke = 2
-		head   = 10.0
-		cross  = 6.0
-	)
-	clr := color.RGBA{0x40, 0xff, 0x40, 0xff}
-
-	fromX, fromY := s.Camera.X+sx, s.Camera.Y+sy
-	t := s.player.Transform()
-	toX, toY := t.X+sx, t.Y+sy
-
-	vector.StrokeLine(target,
-		float32(fromX-cross), float32(fromY), float32(fromX+cross), float32(fromY),
-		stroke, clr, true)
-	vector.StrokeLine(target,
-		float32(fromX), float32(fromY-cross), float32(fromX), float32(fromY+cross),
-		stroke, clr, true)
-
-	vector.StrokeLine(target,
-		float32(fromX), float32(fromY), float32(toX), float32(toY),
-		stroke, clr, true)
-
-	dx, dy := toX-fromX, toY-fromY
-	if dx*dx+dy*dy > head*head {
-		angle := math.Atan2(dy, dx)
-		for _, spread := range []float64{math.Pi - 0.5, math.Pi + 0.5} {
-			vector.StrokeLine(target,
-				float32(toX), float32(toY),
-				float32(toX+head*math.Cos(angle+spread)),
-				float32(toY+head*math.Sin(angle+spread)),
-				stroke, clr, true)
-		}
+	if s.preview != nil {
+		op := &ebiten.DrawImageOptions{}
+		op.ColorScale.ScaleAlpha(0.3)
+		screen.DrawImage(s.preview, op)
+	}
+	if s.soul != nil {
+		s.soul.Draw(screen, s.soulX-8, s.soulY-8, 1, 1, 0)
 	}
 }

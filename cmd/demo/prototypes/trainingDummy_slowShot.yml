@@ -1,0 +1,23 @@
+id: trainingDummy_slowShot
+components:
+  attackPattern:
+    durationMS: 1800
+    events:
+      - atMS: 0
+        projectile: trainingDummy_spark
+        x: 580
+        y: 300
+        velocityX: -90
+        velocityY: 0
+      - atMS: 450
+        projectile: trainingDummy_spark
+        x: 580
+        y: 340
+        velocityX: -90
+        velocityY: 0
+      - atMS: 900
+        projectile: trainingDummy_spark
+        x: 580
+        y: 380
+        velocityX: -90
+        velocityY: 0

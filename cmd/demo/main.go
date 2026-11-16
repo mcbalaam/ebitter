@@ -39,6 +39,14 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.sm.Draw(screen)
 }
 
+// DrawFinalScreen uses nearest-neighbor scaling for the 640x480 logical image.
+// This keeps the 2x window upscale crisp instead of applying Ebitengine's
+// default box filter.
+func (g *Game) DrawFinalScreen(screen ebiten.FinalScreen, offscreen *ebiten.Image, geoM ebiten.GeoM) {
+	op := &ebiten.DrawImageOptions{GeoM: geoM, Filter: ebiten.FilterNearest}
+	screen.DrawImage(offscreen, op)
+}
+
 func (g *Game) Layout(_, _ int) (int, int) {
 	return 640, 480
 }
@@ -48,9 +56,9 @@ func main() {
 	ebiten.SetWindowTitle("Undebitter")
 
 	game := &Game{sm: &scene.SceneManager{}}
-	mapScene, err := scenes.NewDemoScene("media/maps/ruins.tmx", 2)
+	mapScene, err := scenes.NewDemoScene()
 	if err != nil {
-		log.Fatalf("map: %v", err)
+		log.Fatalf("scene: %v", err)
 	}
 	game.sm.Push(mapScene)
 
