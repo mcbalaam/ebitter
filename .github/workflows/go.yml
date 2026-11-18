@@ -17,7 +17,7 @@ jobs:
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev libgl1-mesa-dev xorg-dev
+          sudo apt-get install -y libasound2-dev libgl1-mesa-dev xorg-dev xvfb xauth
 
       - uses: actions/setup-go@v5
         with:
@@ -34,7 +34,7 @@ jobs:
           fi
 
       - name: Test
-        run: go test ./...
+        run: xvfb-run -a go test ./...
 
       - name: Build
         run: go build ./...

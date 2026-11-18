@@ -32,4 +32,11 @@ go run ./cmd/demo
 go test ./...
 ```
 
+On headless Linux (including CI), Ebitengine needs a virtual X display:
+
+```sh
+sudo apt-get install -y xvfb xauth
+xvfb-run -a go test ./...
+```
+
 Other useful checks are `go build ./...` and `go vet ./...`.
