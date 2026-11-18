@@ -29,13 +29,13 @@ func TestSubmenuCompletesNarrativeAndCancelKeepsItRevealed(t *testing.T) {
 	s := &demoScene{
 		runtime: scene.NewRuntime(),
 		battle: &democomponents.BattleController{
-			Phase: democomponents.BattlePhaseCommandSelect,
+			Phase:        democomponents.BattlePhaseCommandSelect,
 			CommandLines: []string{"* Beginning.$p5000$n* Ending.$e"},
 		},
-		input: newDemoInput(),
-		buttonNames: []string{"actButton"},
+		input:               newDemoInput(),
+		buttonNames:         []string{"actButton"},
 		commandDialogueTurn: -1,
-		menuOptions: map[string][]menuOption{"actButton": {{label: "Check", prototype: "check"}}},
+		menuOptions:         map[string][]menuOption{"actButton": {{label: "Check", prototype: "check"}}},
 	}
 	s.runtime.Dialog.ShowAllChecker = s.dialogueXPressed
 	s.runtime.Dialog.AdvanceChecker = s.dialogueAdvancePressed
@@ -59,12 +59,12 @@ func TestSubmenuCompletesNarrativeAndCancelKeepsItRevealed(t *testing.T) {
 func TestUsedConsumablesDisappearAndStackCountsRefresh(t *testing.T) {
 	configureMenuTestAssets(t)
 	s := &demoScene{
-		runtime: scene.NewRuntime(),
-		battle: &democomponents.BattleController{Phase: democomponents.BattlePhaseCommandSelect},
-		inventory: &democomponents.Inventory{Items: []democomponents.InventoryEntry{{Prototype: "spiderDonut", Count: 2}}},
-		prototypes: components.NewBlueprintLibrary(os.DirFS("../../prototypes"), "."),
-		input: newDemoInput(),
-		buttonNames: []string{"itemButton"},
+		runtime:              scene.NewRuntime(),
+		battle:               &democomponents.BattleController{Phase: democomponents.BattlePhaseCommandSelect},
+		inventory:            &democomponents.Inventory{Items: []democomponents.InventoryEntry{{Prototype: "spiderDonut", Count: 2}}},
+		prototypes:           components.NewBlueprintLibrary(os.DirFS("../../prototypes"), "."),
+		input:                newDemoInput(),
+		buttonNames:          []string{"itemButton"},
 		enemyAttackDurations: [][]time.Duration{{3 * time.Second}},
 	}
 	var err error
@@ -111,9 +111,9 @@ func TestNonConsumableItemRemainsAfterUse(t *testing.T) {
 		item: &democomponents.Item{Name: "Key", Consumable: false},
 	}
 	s := &demoScene{
-		runtime: scene.NewRuntime(),
-		battle: &democomponents.BattleController{Phase: democomponents.BattlePhaseCommandSelect},
-		inventory: &democomponents.Inventory{Items: []democomponents.InventoryEntry{{Prototype: "key", Count: 1}}},
+		runtime:     scene.NewRuntime(),
+		battle:      &democomponents.BattleController{Phase: democomponents.BattlePhaseCommandSelect},
+		inventory:   &democomponents.Inventory{Items: []democomponents.InventoryEntry{{Prototype: "key", Count: 1}}},
 		buttonNames: []string{"itemButton"},
 		menuOptions: map[string][]menuOption{"itemButton": {option}},
 	}

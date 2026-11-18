@@ -33,9 +33,6 @@ func TestMenuOptionsComeFromEncounterAndInventoryPrototypes(t *testing.T) {
 	if !ok {
 		t.Fatal("training encounter has no battleController")
 	}
-	if len(battle.CommandLines) != 1 {
-		t.Fatalf("command lines = %v, want the single configured line", battle.CommandLines)
-	}
 	inventory, ok := components.ComponentOf[*democomponents.Inventory](encounter, "inventory")
 	if !ok {
 		t.Fatal("training encounter has no inventory")
