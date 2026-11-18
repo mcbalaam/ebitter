@@ -1,4 +1,4 @@
-package scenes
+package mainscene
 
 import (
 	"fmt"
@@ -36,9 +36,19 @@ type demoScene struct {
 	menuOptions           map[string][]menuOption
 	prototypes            *components.BlueprintLibrary
 	battle                *democomponents.BattleController
+	inventory             *democomponents.Inventory
 	actionDialoguePending bool
 	commandDialogueTurn   int
+	enemyDialoguePending  bool
+	enemies               []*democomponents.EnemyController
+	enemyAttackDurations  [][]time.Duration
+	attackRemaining       time.Duration
+	enemyBubble           *render.AnimatedIcon
 	soul                  *render.AnimatedIcon
+	soulController        *democomponents.SoulController
+	soulFreeMove          bool
+	arena                 *BattleBox
+	commandArenaCorners   [4]tween.Vec2
 	phaseLabel            *text.TextString
 	playerCombatant       *democomponents.Combatant
 	playerNameText        *text.TextString
@@ -49,13 +59,6 @@ type demoScene struct {
 	playerHPValueX        float64
 	soulX, soulY          float64
 	input                 *demoInput
-}
-
-type menuEntry struct {
-	option  menuOption
-	text    *text.TextString
-	anchorX float64
-	anchorY float64
 }
 
 type demoInput struct {
@@ -202,7 +205,8 @@ func NewDemoScene() (*demoScene, error) {
 	box := components.NewEntity("battleBox")
 	box.Layer = queues.LayerArena
 	box.Queues = s.runtime.Queues
-	box.Add(NewBattleBox(32, 250, 576, 140, s.runtime.Queues.Update))
+	s.arena = NewBattleBox(32, 250, 576, 140, s.runtime.Queues.Update)
+	box.Add(s.arena)
 	box.Schedule()
 
 	buttonLibrary := components.NewBlueprintLibrary(nil, "prototypes")
@@ -233,6 +237,7 @@ func NewDemoScene() (*demoScene, error) {
 		return nil, fmt.Errorf("training encounter has no battleController")
 	}
 	inventory, _ := components.ComponentOf[*democomponents.Inventory](encounter, "inventory")
+	s.inventory = inventory
 	playerBlueprint, err := buttonLibrary.Load(battle.Player)
 	if err != nil {
 		return nil, fmt.Errorf("load player prototype: %w", err)
@@ -246,6 +251,10 @@ func NewDemoScene() (*demoScene, error) {
 		return nil, fmt.Errorf("player prototype %q has no combatant", battle.Player)
 	}
 	s.playerCombatant = playerCombatant
+	s.soulController, ok = components.ComponentOf[*democomponents.SoulController](playerEntity, "soulController")
+	if !ok {
+		return nil, fmt.Errorf("player prototype %q has no soulController", battle.Player)
+	}
 	playerName := playerCombatant.Name
 	if playerName == "" {
 		playerName = battle.Player
@@ -267,6 +276,12 @@ func NewDemoScene() (*demoScene, error) {
 	s.playerHPValueText = text.NewTextString("", s.playerHPValueX, 384, statusStyle)
 
 	s.battle = battle
+	if err := s.initEnemyDialogue(); err != nil {
+		return nil, err
+	}
+	if err := s.initEnemyAttacks(); err != nil {
+		return nil, err
+	}
 	s.menuOptions, err = buildMenuOptions(buttonLibrary, battle, inventory)
 	if err != nil {
 		return nil, fmt.Errorf("build battle menus: %w", err)
@@ -295,17 +310,15 @@ func (s *demoScene) Resume()                 { s.runtime.Queues.Resume() }
 
 func (s *demoScene) Update(dt time.Duration) {
 	s.input.Update()
+	s.updateAttack(dt)
 	s.updatePhaseLabel()
-	s.maybeShowCommandDialogue()
-	if s.runtime.Dialog.Active() {
-		s.runtime.Dialog.Update(dt)
-		if !s.runtime.Dialog.Active() && s.actionDialoguePending {
-			s.finishPlayerActionDialogue()
-		}
-	}
+	s.updateDialogue(dt)
 	s.updateSoul(dt)
 	s.runtime.Dialog.SetVisible(!s.menuActive)
 	s.runtime.Queues.ExecuteUpdate(dt)
+	if s.soulFreeMove {
+		s.clampSoulToArena()
+	}
 	s.runtime.Queues.ExecuteDelete()
 }
 
@@ -318,205 +331,64 @@ func (s *demoScene) updatePhaseLabel() {
 	}
 }
 
-func (s *demoScene) dialogueXPressed() bool {
-	return !s.menuActive && s.input.justPressed(ebiten.KeyX)
-}
-
-func (s *demoScene) dialogueAdvancePressed() bool {
-	return !s.menuActive &&
-		s.battle != nil &&
-		s.battle.Phase == democomponents.BattlePhasePlayerAction &&
-		s.input.justPressed(ebiten.KeyZ)
-}
-
-func commandLineForTurn(lines []string, turn int) (string, bool) {
-	if turn < 0 || turn >= len(lines) {
-		return "", false
-	}
-	return lines[turn], true
-}
-
-func (s *demoScene) maybeShowCommandDialogue() {
-	if s.battle == nil || s.battle.Phase != democomponents.BattlePhaseCommandSelect ||
-		s.commandDialogueTurn == s.battle.Turn || s.runtime.Dialog.Active() {
-		return
-	}
-	s.commandDialogueTurn = s.battle.Turn
-	s.runtime.Dialog.SetVisible(true)
-	line, ok := commandLineForTurn(s.battle.CommandLines, s.battle.Turn)
-	if ok {
-		s.runtime.Dialog.Show(line, battleDialogStyle(), sndText)
-	}
-}
-
 func (s *demoScene) soulVisible() bool {
 	if s.battle == nil {
 		return s.soul != nil
 	}
 	return s.soul != nil && (s.battle.Phase == democomponents.BattlePhaseCommandSelect ||
-		s.battle.Phase == democomponents.BattlePhaseTargetSelect)
+		s.battle.Phase == democomponents.BattlePhaseTargetSelect ||
+		s.battle.Phase == democomponents.BattlePhaseEnemyTurn ||
+		s.battle.Phase == democomponents.BattlePhaseAttack)
 }
 
-func (s *demoScene) openMenu() {
-	if s.selectedButton < 0 || s.selectedButton >= len(s.buttonNames) {
-		return
-	}
-	options := s.menuOptions[s.buttonNames[s.selectedButton]]
-	s.closeMenu()
-	s.menuIndex = 0
-	style := text.TextStyle{
-		FontName: "determination", ScaleX: 0.25, ScaleY: 0.25,
-		FontHeight: 130, Color: color.White,
-		CharSpacing: 4,
-	}
-	if len(options) == 0 {
-		options = []menuOption{{label: "(No items)"}}
-	}
-	for i, option := range options {
-		y := 287.0 + float64(i)*32
-		entry := &menuEntry{
-			option:  option,
-			anchorX: 72, anchorY: y,
-			text: text.NewTextString("* "+option.label, 90, y-27, style),
-		}
-		entry.text.Queues = s.runtime.Queues
-		entry.text.Show()
-		s.menuEntries = append(s.menuEntries, entry)
-	}
-	s.menuActive = len(s.menuEntries) > 0
-	if s.menuActive {
-		s.moveSoulToMenuEntry()
-	}
-}
-
-func (s *demoScene) closeMenu() {
-	for _, entry := range s.menuEntries {
-		entry.text.Destroy()
-	}
-	s.menuEntries = nil
-}
-
-func (s *demoScene) moveSoulToMenuEntry() {
-	if s.menuIndex < 0 || s.menuIndex >= len(s.menuEntries) {
-		return
-	}
-	entry := s.menuEntries[s.menuIndex]
-	s.soulX, s.soulY = entry.anchorX, entry.anchorY
-}
 func (s *demoScene) updateSoul(dt time.Duration) {
 	if s.soul == nil {
+		return
+	}
+	s.syncSoulMode()
+	if s.soulFreeMove {
+		s.updateFreeSoul(dt)
+		s.soul.Update(dt)
 		return
 	}
 	if !s.menuActive && s.battle != nil && s.battle.Phase != democomponents.BattlePhaseCommandSelect {
 		s.soul.Update(dt)
 		return
 	}
-	if !s.menuActive {
-		previousButton := s.selectedButton
-		if s.input.justPressed(ebiten.KeyArrowLeft) {
-			s.selectedButton--
-		}
-		if s.input.justPressed(ebiten.KeyArrowRight) {
-			s.selectedButton++
-		}
-		if s.selectedButton < 0 {
-			s.selectedButton = len(s.buttonNames) - 1
-		}
-		if s.selectedButton >= len(s.buttonNames) {
-			s.selectedButton = 0
-		}
-		if previousButton != s.selectedButton {
-			s.playSFX(sndSqueak)
-		}
-		button := s.buttons[s.buttonNames[s.selectedButton]]
-		if button != nil && button.Transform() != nil {
-			s.soulX = button.Transform().X + 16
-			s.soulY = 453
-		}
-		s.syncButtonSelection()
-		if s.input.justPressed(ebiten.KeyZ) {
-			s.menuConfirmed = false
-			s.playSFX(sndSelect)
-			s.openMenu()
-		}
-	} else {
-		if s.input.justPressed(ebiten.KeyArrowUp) || s.input.justPressed(ebiten.KeyArrowLeft) {
-			previousIndex := s.menuIndex
-			s.menuIndex--
-			if s.menuIndex < 0 {
-				s.menuIndex = len(s.menuEntries) - 1
-			}
-			if s.menuIndex != previousIndex {
-				s.playSFX(sndSqueak)
-			}
-			s.moveSoulToMenuEntry()
-		}
-		if s.input.justPressed(ebiten.KeyArrowDown) || s.input.justPressed(ebiten.KeyArrowRight) {
-			previousIndex := s.menuIndex
-			s.menuIndex++
-			if s.menuIndex >= len(s.menuEntries) {
-				s.menuIndex = 0
-			}
-			if s.menuIndex != previousIndex {
-				s.playSFX(sndSqueak)
-			}
-			s.moveSoulToMenuEntry()
-		}
-		if s.input.justPressed(ebiten.KeyZ) {
-			s.confirmMenuChoice()
-		}
-		if s.input.justPressed(ebiten.KeyX) {
-			s.menuActive = false
-			s.menuConfirmed = false
-			s.playSFX(sndSqueak)
-			s.closeMenu()
-			s.syncButtonSelection()
-		}
+	if s.menuActive {
+		s.updateMenu()
+		s.soul.Update(dt)
+		return
+	}
+
+	previousButton := s.selectedButton
+	if s.input.justPressed(ebiten.KeyArrowLeft) {
+		s.selectedButton--
+	}
+	if s.input.justPressed(ebiten.KeyArrowRight) {
+		s.selectedButton++
+	}
+	if s.selectedButton < 0 {
+		s.selectedButton = len(s.buttonNames) - 1
+	}
+	if s.selectedButton >= len(s.buttonNames) {
+		s.selectedButton = 0
+	}
+	if previousButton != s.selectedButton {
+		s.playSFX(sndSqueak)
+	}
+	button := s.buttons[s.buttonNames[s.selectedButton]]
+	if button != nil && button.Transform() != nil {
+		s.soulX = button.Transform().X + 16
+		s.soulY = 453
+	}
+	s.syncButtonSelection()
+	if s.input.justPressed(ebiten.KeyZ) {
+		s.menuConfirmed = false
+		s.playSFX(sndSelect)
+		s.openMenu()
 	}
 	s.soul.Update(dt)
-}
-
-func (s *demoScene) confirmMenuChoice() {
-	if s.menuIndex < 0 || s.menuIndex >= len(s.menuEntries) || s.battle == nil {
-		return
-	}
-	selected := s.menuEntries[s.menuIndex].option
-	if selected.prototype == "" {
-		return
-	}
-	s.playSFX(sndSelect)
-	s.selectedMenuOption = selected
-	s.menuConfirmed = true
-	s.menuActive = false
-	s.closeMenu()
-	s.battle.SetPhase(democomponents.BattlePhasePlayerAction)
-	s.syncButtonSelection()
-	s.runtime.Dialog.Clear()
-	s.actionDialoguePending = true
-	dialogue := s.selectedMenuOption.dialogue
-	if len(dialogue) == 0 {
-		dialogue = []string{"* " + s.selectedMenuOption.label + "."}
-	}
-	for _, line := range dialogue {
-		s.runtime.Dialog.Show(line, battleDialogStyle(), sndText)
-	}
-	if !s.runtime.Dialog.Active() {
-		s.finishPlayerActionDialogue()
-	}
-}
-
-func (s *demoScene) finishPlayerActionDialogue() {
-	if s.battle != nil {
-		s.battle.Turn++
-		s.battle.SetPhase(democomponents.BattlePhaseEnemyTurn)
-	}
-	s.actionDialoguePending = false
-}
-
-func (s *demoScene) playSFX(name string) {
-	if player := s.runtime.Dialog.SoundPlayer; player != nil {
-		_ = player.PlaySound(name, 0.5)
-	}
 }
 
 func (s *demoScene) syncButtonSelection() {
@@ -539,7 +411,9 @@ func (s *demoScene) Draw(screen *ebiten.Image) {
 		s.frame = ebiten.NewImage(screen.Bounds().Dx(), screen.Bounds().Dy())
 	}
 	s.frame.Fill(color.Black)
+	s.drawEnemyBubble(s.frame)
 	s.runtime.Queues.ExecuteDraw(s.frame)
+	s.drawMenu(s.frame)
 	if s.preview != nil {
 		op := &ebiten.DrawImageOptions{}
 		op.ColorScale.ScaleAlpha(0.3)

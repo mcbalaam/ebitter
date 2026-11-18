@@ -7,7 +7,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/mcbalaam/ebitter/assetfs"
-	"github.com/mcbalaam/ebitter/cmd/demo/scenes"
+	mainscene "github.com/mcbalaam/ebitter/cmd/demo/scenes/main"
 	"github.com/mcbalaam/ebitter/components"
 	"github.com/mcbalaam/ebitter/queues"
 	"github.com/mcbalaam/ebitter/scene"
@@ -56,7 +56,7 @@ func main() {
 	ebiten.SetWindowTitle("Undebitter")
 
 	game := &Game{sm: &scene.SceneManager{}}
-	mapScene, err := scenes.NewDemoScene()
+	mapScene, err := mainscene.NewDemoScene()
 	if err != nil {
 		log.Fatalf("scene: %v", err)
 	}

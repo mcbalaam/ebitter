@@ -1,4 +1,4 @@
-package scenes
+package mainscene
 
 import (
 	"fmt"
@@ -11,6 +11,7 @@ type menuOption struct {
 	label     string
 	prototype string
 	dialogue  []string
+	item      *democomponents.Item
 }
 
 func buildMenuOptions(library *components.BlueprintLibrary, battle *democomponents.BattleController, inventory *democomponents.Inventory) (map[string][]menuOption, error) {
@@ -81,12 +82,9 @@ func buildMenuOptions(library *components.BlueprintLibrary, battle *democomponen
 		if !ok {
 			return nil, fmt.Errorf("item prototype %q has no item component", entry.Prototype)
 		}
-		label := item.Name
-		if entry.Count > 1 {
-			label = fmt.Sprintf("%s x%d", label, entry.Count)
-		}
 		options["itemButton"] = append(options["itemButton"], menuOption{
-			label: label, prototype: entry.Prototype, dialogue: item.Dialogue,
+			label: itemMenuLabel(item.Name, entry.Count), prototype: entry.Prototype, dialogue: item.Dialogue,
+			item: item,
 		})
 	}
 

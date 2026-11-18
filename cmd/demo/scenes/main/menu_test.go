@@ -1,10 +1,11 @@
-package scenes
+package mainscene
 
 import (
 	"os"
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/mcbalaam/ebitter/assetfs"
 	democomponents "github.com/mcbalaam/ebitter/cmd/demo/components"
 	"github.com/mcbalaam/ebitter/components"
 	"github.com/mcbalaam/ebitter/render"
@@ -12,7 +13,14 @@ import (
 )
 
 func TestMenuOptionsComeFromEncounterAndInventoryPrototypes(t *testing.T) {
-	library := components.NewBlueprintLibrary(os.DirFS("../prototypes"), ".")
+	previousFS, previousSpriteRoot := assetfs.FS, components.SpriteRoot
+	assetfs.SetFS(os.DirFS("../.."))
+	components.SpriteRoot = "media/sprites"
+	t.Cleanup(func() {
+		assetfs.SetFS(previousFS)
+		components.SpriteRoot = previousSpriteRoot
+	})
+	library := components.NewBlueprintLibrary(os.DirFS("../../prototypes"), ".")
 	blueprint, err := library.Load("trainingEncounter")
 	if err != nil {
 		t.Fatal(err)
@@ -25,8 +33,8 @@ func TestMenuOptionsComeFromEncounterAndInventoryPrototypes(t *testing.T) {
 	if !ok {
 		t.Fatal("training encounter has no battleController")
 	}
-	if len(battle.CommandLines) != 2 {
-		t.Fatalf("command lines = %v, want one per configured turn", battle.CommandLines)
+	if len(battle.CommandLines) != 1 {
+		t.Fatalf("command lines = %v, want the single configured line", battle.CommandLines)
 	}
 	inventory, ok := components.ComponentOf[*democomponents.Inventory](encounter, "inventory")
 	if !ok {
@@ -129,8 +137,14 @@ func TestCommandDialogueUsesTurnIndex(t *testing.T) {
 			t.Fatalf("turn %d: got %q, available=%v; want %q", turn, got, ok, want)
 		}
 	}
-	if _, ok := commandLineForTurn(lines, len(lines)); ok {
-		t.Fatal("expected no command line after configured turns")
+	if got, ok := commandLineForTurn(lines, len(lines)); !ok || got != lines[0] {
+		t.Fatalf("expected command lines to cycle, got %q, available=%v", got, ok)
+	}
+	if _, ok := commandLineForTurn(nil, 0); ok {
+		t.Fatal("empty command lines should not start a dialogue")
+	}
+	if _, ok := commandLineForTurn(lines, -1); ok {
+		t.Fatal("negative turns should not select a command line")
 	}
 }
 
@@ -166,11 +180,11 @@ func TestActionDialogueUsesZToAdvanceAndXOnlyToReveal(t *testing.T) {
 }
 
 func TestHPBarWidthScalesWithMaxHP(t *testing.T) {
-	if got := hpBarWidth(10); got != 60 {
-		t.Fatalf("width for maxHP 10 = %v, want 60", got)
+	if got := hpBarWidth(10); got != 15 {
+		t.Fatalf("width for maxHP 10 = %v, want 15", got)
 	}
-	if got := hpBarWidth(20); got != 120 {
-		t.Fatalf("width for maxHP 20 = %v, want 120", got)
+	if got := hpBarWidth(20); got != 30 {
+		t.Fatalf("width for maxHP 20 = %v, want 30", got)
 	}
 	if got := hpBarWidth(100); got != 150 {
 		t.Fatalf("width for maxHP 100 = %v, want capped width 150", got)

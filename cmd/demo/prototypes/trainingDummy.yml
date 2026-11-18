@@ -5,6 +5,7 @@ components:
   transform:
     x: 320
     y: 150
+  sprite: { icon: dummy, state: idle, anchor: [0.5, 0.5] }
   combatant:
     hp: 20
     maxHP: 20
@@ -12,15 +13,15 @@ components:
   enemyController:
     name: Training Dummy
     lines:
-      - The training dummy waits patiently.
-      - The training dummy is still waiting.
+      - I'm made of cotton, $n$p300what's your $nexcuse?
+      - ...
     actions:
       - trainingDummy_check
     attacks:
       - trainingDummy_slowShot
     fightDialogue:
-      - "* You attack the training dummy."
+      - "* Not implemented."
     spareDialogue:
-      - "* You spared the training dummy."
+      - "* You spare the training dummy...$p600$n* ...but their name wasn't $cf5baffPINK$cffffff!"
     canBeSpared: true
     canFlee: false

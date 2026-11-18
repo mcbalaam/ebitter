@@ -6,6 +6,7 @@ components:
       - trainingDummy
     commandLines:
       - "* ebitengine + ebitter btw.$e"
+      - "* uh-huh.$p800$n* you heard it right."
   inventory:
     items:
       - prototype: spiderDonut

@@ -6,3 +6,4 @@ components:
   hitbox: { w: 21, h: 12, layer: player }
   playerController: { speed: 160 }
   combatant: { name: Johnrobust, level: 1, hp: 20, maxHP: 20, defense: 0 }
+  soulController: { speed: 180 }

@@ -1,4 +1,4 @@
-package scenes
+package mainscene
 
 import (
 	"image/color"
@@ -24,8 +24,9 @@ var demoDialogs = map[string]demoDialog{
 
 const sndText = "snd_text"
 const (
-	sndSqueak = "snd_squeak"
-	sndSelect = "snd_select"
+	sndEnemyText = "snd_text2"
+	sndSqueak    = "snd_squeak"
+	sndSelect    = "snd_select"
 )
 
 func initDialogAudio(dialog *text.DialogManager) error {
@@ -35,6 +36,7 @@ func initDialogAudio(dialog *text.DialogManager) error {
 	}
 	for path, name := range map[string]string{
 		"media/sound/snd_text.ogg":   sndText,
+		"media/sound/snd_text2.ogg":  sndEnemyText,
 		"media/sound/snd_squeak.ogg": sndSqueak,
 		"media/sound/snd_select.ogg": sndSelect,
 	} {

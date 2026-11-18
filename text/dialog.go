@@ -89,6 +89,13 @@ func (dm *DialogManager) RevealedAll() bool {
 	return dm.active != nil && dm.active.RevealedAll()
 }
 
+// ShowAll reveals the active phrase immediately without typing sounds or advancing it.
+func (dm *DialogManager) ShowAll() {
+	if dm.active != nil {
+		dm.active.ShowAll()
+	}
+}
+
 func (dm *DialogManager) Waiting() bool {
 	return dm.active != nil && dm.active.Waiting()
 }
