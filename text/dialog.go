@@ -69,6 +69,22 @@ func (dm *DialogManager) Active() bool {
 	return dm.active != nil
 }
 
+// SetVisible controls rendering without changing the active dialogue.
+func (dm *DialogManager) SetVisible(visible bool) {
+	if dm.active != nil {
+		dm.active.Visible = visible
+	}
+}
+
+// Clear destroys the active dialogue and drops queued dialogue requests.
+func (dm *DialogManager) Clear() {
+	if dm.active != nil {
+		dm.active.Destroy()
+		dm.active = nil
+	}
+	dm.queue = nil
+}
+
 func (dm *DialogManager) RevealedAll() bool {
 	return dm.active != nil && dm.active.RevealedAll()
 }

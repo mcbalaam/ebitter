@@ -14,7 +14,7 @@ type Scene interface {
 	Draw(screen *ebiten.Image)
 }
 
-const defaultFadeDuration = 400 * time.Millisecond
+const defaultFadeDuration = 600 * time.Millisecond
 
 type fadePhase int
 

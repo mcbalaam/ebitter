@@ -4,3 +4,5 @@ components:
     name: Check
     target: enemy
     effects: []
+    dialogue:
+      - "* Training Dummy - ATK 0 DEF 0$p500$n* Text description."

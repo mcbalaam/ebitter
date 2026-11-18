@@ -52,7 +52,7 @@ func (g *Game) Layout(_, _ int) (int, int) {
 }
 
 func main() {
-	ebiten.SetWindowSize(640, 480)
+	ebiten.SetWindowSize(960, 720)
 	ebiten.SetWindowTitle("Undebitter")
 
 	game := &Game{sm: &scene.SceneManager{}}

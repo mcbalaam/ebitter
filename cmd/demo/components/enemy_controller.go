@@ -3,11 +3,15 @@ package components
 // EnemyController is prototype data for enemy dialogue, actions and attacks.
 // Actions and attacks are IDs of other entity prototypes.
 type EnemyController struct {
-	Lines       []string `yaml:"lines"`
-	Actions     []string `yaml:"actions"`
-	Attacks     []string `yaml:"attacks"`
-	CanBeSpared bool     `yaml:"canBeSpared"`
-	CanFlee     bool     `yaml:"canFlee"`
+	Name          string   `yaml:"name"`
+	Lines         []string `yaml:"lines"`
+	Actions       []string `yaml:"actions"`
+	Attacks       []string `yaml:"attacks"`
+	FightDialogue []string `yaml:"fightDialogue"`
+	SpareDialogue []string `yaml:"spareDialogue"`
+	FleeDialogue  []string `yaml:"fleeDialogue"`
+	CanBeSpared   bool     `yaml:"canBeSpared"`
+	CanFlee       bool     `yaml:"canFlee"`
 }
 
 func (*EnemyController) Type() string { return "enemyController" }

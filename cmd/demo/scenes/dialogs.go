@@ -3,8 +3,6 @@ package scenes
 import (
 	"image/color"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/mcbalaam/ebitter/sound"
 	"github.com/mcbalaam/ebitter/text"
 )
@@ -25,29 +23,36 @@ var demoDialogs = map[string]demoDialog{
 }
 
 const sndText = "snd_text"
+const (
+	sndSqueak = "snd_squeak"
+	sndSelect = "snd_select"
+)
 
 func initDialogAudio(dialog *text.DialogManager) error {
 	player, err := sound.NewSoundPlayer(44100)
 	if err != nil {
 		return err
 	}
-	if err := player.RegisterNewSound("media/sound/snd_text.ogg", sndText); err != nil {
-		return err
+	for path, name := range map[string]string{
+		"media/sound/snd_text.ogg":   sndText,
+		"media/sound/snd_squeak.ogg": sndSqueak,
+		"media/sound/snd_select.ogg": sndSelect,
+	} {
+		if err := player.RegisterNewSound(path, name); err != nil {
+			return err
+		}
 	}
 	dialog.SoundPlayer = player
-	dialog.CharSoundVolume = 0.5
+	dialog.CharSoundVolume = 0.25
 	dialog.CharPitchMin = 1.0
 	dialog.CharPitchMax = 1.0
 	return nil
 }
 
 const (
-	textboxX      = 35
-	textboxY      = 325
-	textboxW      = 570
-	textboxH      = 140
-	textboxBorder = 5
-	textboxPad    = 25
+	textboxX   = 35
+	textboxY   = 325
+	textboxPad = 25
 )
 
 var dialogStyle = text.TextStyle{
@@ -63,11 +68,9 @@ var dialogStyle = text.TextStyle{
 	CharWidths:   map[string]int{" ": 60},
 }
 
-func drawTextbox(screen *ebiten.Image) {
-	vector.FillRect(screen,
-		textboxX, textboxY, textboxW, textboxH,
-		color.Black, false)
-	vector.StrokeRect(screen,
-		textboxX, textboxY, textboxW, textboxH,
-		textboxBorder, color.White, false)
+func battleDialogStyle() text.TextStyle {
+	style := dialogStyle
+	style.StartX = 60
+	style.StartY = 260
+	return style
 }

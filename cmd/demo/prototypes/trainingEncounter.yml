@@ -1,0 +1,12 @@
+id: trainingEncounter
+components:
+  battleController:
+    player: playerChar
+    enemies:
+      - trainingDummy
+    commandLines:
+      - "* ebitengine + ebitter btw.$e"
+  inventory:
+    items:
+      - prototype: spiderDonut
+        count: 1

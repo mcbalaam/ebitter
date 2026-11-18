@@ -1,0 +1,11 @@
+id: spiderDonut
+components:
+  item:
+    name: Spider Donut
+    target: player
+    consumable: true
+    effects:
+      - type: heal
+        amount: 12
+    dialogue:
+      - "* You ate the Spider Donut.$p500$n* Ew."

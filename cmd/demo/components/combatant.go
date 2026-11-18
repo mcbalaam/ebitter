@@ -8,9 +8,11 @@ import (
 
 // Combatant contains mutable battle stats shared by the player and enemies.
 type Combatant struct {
-	HP      int `yaml:"hp"`
-	MaxHP   int `yaml:"maxHP"`
-	Defense int `yaml:"defense"`
+	Name    string `yaml:"name"`
+	Level   int    `yaml:"level"`
+	HP      int    `yaml:"hp"`
+	MaxHP   int    `yaml:"maxHP"`
+	Defense int    `yaml:"defense"`
 }
 
 func (*Combatant) Type() string { return "combatant" }

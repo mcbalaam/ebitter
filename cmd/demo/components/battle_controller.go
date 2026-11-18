@@ -24,6 +24,9 @@ type BattleController struct {
 	Phase          BattlePhase `yaml:"phase"`
 	Turn           int         `yaml:"turn"`
 	SelectedTarget int         `yaml:"selectedTarget"`
+	Player         string      `yaml:"player"`
+	Enemies        []string    `yaml:"enemies"`
+	CommandLines   []string    `yaml:"commandLines"`
 }
 
 func (*BattleController) Type() string { return "battleController" }
@@ -40,6 +43,12 @@ func init() {
 	registerBattleComponent("battleController", -100, func() *BattleController { return &BattleController{} }, func(controller *BattleController) error {
 		if controller.Turn < 0 || controller.SelectedTarget < 0 {
 			return fmt.Errorf("turn and selectedTarget must not be negative")
+		}
+		if controller.Player == "" && len(controller.Enemies) > 0 {
+			return fmt.Errorf("player is required when enemies are configured")
+		}
+		if err := uniqueNonEmpty("enemies", controller.Enemies); err != nil {
+			return err
 		}
 		switch controller.Phase {
 		case "", BattlePhaseCommandSelect, BattlePhaseTargetSelect, BattlePhasePlayerAction,

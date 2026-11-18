@@ -47,6 +47,7 @@ func (g *Glyph) Draw(s *ebiten.Image) {
 
 type TextDisplay struct {
 	textStr    *TextString
+	Visible    bool
 	Queues     *queues.QueueSet
 	Commands   []DialogueCommand
 	CmdIndex   int
@@ -86,6 +87,7 @@ func NewTextDisplayOn(text string, style TextStyle, q *queues.QueueSet) *TextDis
 
 	td := &TextDisplay{
 		textStr:   NewTextString(text, style.StartX, style.StartY, style),
+		Visible:   true,
 		Queues:    q,
 		Displayed: make([]*Glyph, 0),
 	}
@@ -276,6 +278,9 @@ func (t *TextDisplay) Update(deltaTime time.Duration) {
 }
 
 func (t *TextDisplay) Draw(s *ebiten.Image) {
+	if !t.Visible {
+		return
+	}
 	for _, glyph := range t.Displayed {
 		glyph.Draw(s)
 	}

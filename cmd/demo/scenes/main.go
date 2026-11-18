@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"image/color"
 	"image/png"
-	"math"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -13,23 +12,50 @@ import (
 	"github.com/mcbalaam/ebitter/assetfs"
 	democomponents "github.com/mcbalaam/ebitter/cmd/demo/components"
 	"github.com/mcbalaam/ebitter/components"
+	"github.com/mcbalaam/ebitter/engine"
 	"github.com/mcbalaam/ebitter/queues"
 	"github.com/mcbalaam/ebitter/render"
 	"github.com/mcbalaam/ebitter/scene"
+	"github.com/mcbalaam/ebitter/text"
 	"github.com/mcbalaam/ebitter/tween"
 )
 
 type demoScene struct {
-	runtime        *scene.Runtime
-	preview        *ebiten.Image
-	buttons        map[string]*components.Entity
-	buttonNames    []string
-	selectedButton int
-	menuActive     bool
-	menuConfirmed  bool
-	soul           *render.AnimatedIcon
-	soulX, soulY   float64
-	input          *demoInput
+	runtime               *scene.Runtime
+	camera                *engine.Camera
+	frame                 *ebiten.Image
+	preview               *ebiten.Image
+	buttons               map[string]*components.Entity
+	buttonNames           []string
+	selectedButton        int
+	menuActive            bool
+	menuConfirmed         bool
+	selectedMenuOption    menuOption
+	menuEntries           []*menuEntry
+	menuIndex             int
+	menuOptions           map[string][]menuOption
+	prototypes            *components.BlueprintLibrary
+	battle                *democomponents.BattleController
+	actionDialoguePending bool
+	commandDialogueTurn   int
+	soul                  *render.AnimatedIcon
+	phaseLabel            *text.TextString
+	playerCombatant       *democomponents.Combatant
+	playerNameText        *text.TextString
+	playerLevelText       *text.TextString
+	playerHPText          *text.TextString
+	playerHPValueText     *text.TextString
+	playerHPValue         string
+	playerHPValueX        float64
+	soulX, soulY          float64
+	input                 *demoInput
+}
+
+type menuEntry struct {
+	option  menuOption
+	text    *text.TextString
+	anchorX float64
+	anchorY float64
 }
 
 type demoInput struct {
@@ -133,9 +159,26 @@ func (b *BattleBox) Draw(_ *components.Entity, screen *ebiten.Image) {
 func NewDemoScene() (*demoScene, error) {
 	s := &demoScene{
 		runtime: scene.NewRuntime(), buttons: make(map[string]*components.Entity),
-		buttonNames: []string{"fightButton", "actButton", "itemButton", "mercyButton"},
-		input:       newDemoInput(),
+		buttonNames:         []string{"fightButton", "actButton", "itemButton", "mercyButton"},
+		input:               newDemoInput(),
+		commandDialogueTurn: -1,
 	}
+	s.camera = engine.NewCamera()
+	s.camera.SetZoomLimits(1, 10)
+	s.camera.SetEasing(tween.EaseOutExpo)
+	s.camera.SetViewport(640, 480)
+	s.camera.CenterOn(320, 240)
+	s.camera.SetZoom(1.3)
+	s.camera.SetUpdateQueue(s.runtime.Queues.Update)
+	s.camera.SetSmooth(true)
+	s.camera.ZoomDuration(2 * time.Second)
+	s.camera.SetZoom(1)
+	if err := initDialogAudio(s.runtime.Dialog); err != nil {
+		return nil, fmt.Errorf("initialize battle audio: %w", err)
+	}
+	backgroundSkip := func() bool { return s.dialogueXPressed() }
+	s.runtime.Dialog.ShowAllChecker = backgroundSkip
+	s.runtime.Dialog.AdvanceChecker = func() bool { return s.dialogueAdvancePressed() }
 	previewFile, err := assetfs.FS.Open("media/sprites/preview.png")
 	if err != nil {
 		return nil, fmt.Errorf("open interface preview: %w", err)
@@ -163,6 +206,7 @@ func NewDemoScene() (*demoScene, error) {
 	box.Schedule()
 
 	buttonLibrary := components.NewBlueprintLibrary(nil, "prototypes")
+	s.prototypes = buttonLibrary
 	buttons := []string{"actButton", "fightButton", "itemButton", "mercyButton"}
 	for _, button := range buttons {
 		blueprint, err := buttonLibrary.Load(button)
@@ -176,6 +220,60 @@ func NewDemoScene() (*demoScene, error) {
 		entity.Schedule()
 		s.buttons[button] = entity
 	}
+	encounterBlueprint, err := buttonLibrary.Load("trainingEncounter")
+	if err != nil {
+		return nil, fmt.Errorf("load training encounter prototype: %w", err)
+	}
+	encounter, err := encounterBlueprint.Instantiate()
+	if err != nil {
+		return nil, fmt.Errorf("instantiate training encounter: %w", err)
+	}
+	battle, ok := components.ComponentOf[*democomponents.BattleController](encounter, "battleController")
+	if !ok {
+		return nil, fmt.Errorf("training encounter has no battleController")
+	}
+	inventory, _ := components.ComponentOf[*democomponents.Inventory](encounter, "inventory")
+	playerBlueprint, err := buttonLibrary.Load(battle.Player)
+	if err != nil {
+		return nil, fmt.Errorf("load player prototype: %w", err)
+	}
+	playerEntity, err := playerBlueprint.Instantiate()
+	if err != nil {
+		return nil, fmt.Errorf("instantiate player prototype: %w", err)
+	}
+	playerCombatant, ok := components.ComponentOf[*democomponents.Combatant](playerEntity, "combatant")
+	if !ok {
+		return nil, fmt.Errorf("player prototype %q has no combatant", battle.Player)
+	}
+	s.playerCombatant = playerCombatant
+	playerName := playerCombatant.Name
+	if playerName == "" {
+		playerName = battle.Player
+	}
+	statusStyle := text.TextStyle{
+		FontName: "mars", ScaleX: 0.25, ScaleY: 0.25, FontHeight: 24, Color: color.White,
+	}
+	marsFont, err := render.NewAnimatedIconFromPath("media/sprites/mars", " ")
+	if err != nil {
+		return nil, fmt.Errorf("load Mars font for player status: %w", err)
+	}
+	levelLabel := fmt.Sprintf("LV%d", playerCombatant.Level)
+	levelX := 30 + statusTextWidth(marsFont, playerName, statusStyle.ScaleX) + 24
+	hpX := levelX + statusTextWidth(marsFont, levelLabel, statusStyle.ScaleX) + 24
+	s.playerNameText = text.NewTextString(playerName, 30, 384, statusStyle)
+	s.playerLevelText = text.NewTextString(levelLabel, levelX, 384, statusStyle)
+	s.playerHPText = text.NewTextString("HP", hpX, 384, statusStyle)
+	s.playerHPValueX = hpX + float64(hpBarWidth(playerCombatant.MaxHP)) + 12
+	s.playerHPValueText = text.NewTextString("", s.playerHPValueX, 384, statusStyle)
+
+	s.battle = battle
+	s.menuOptions, err = buildMenuOptions(buttonLibrary, battle, inventory)
+	if err != nil {
+		return nil, fmt.Errorf("build battle menus: %w", err)
+	}
+	s.phaseLabel = text.NewTextString(string(battle.Phase), 8, -8, text.TextStyle{
+		FontName: "mars", ScaleX: 0.2, ScaleY: 0.2, FontHeight: 20, Color: color.White,
+	})
 	s.syncButtonSelection()
 	return s, nil
 }
@@ -197,28 +295,124 @@ func (s *demoScene) Resume()                 { s.runtime.Queues.Resume() }
 
 func (s *demoScene) Update(dt time.Duration) {
 	s.input.Update()
+	s.updatePhaseLabel()
+	s.maybeShowCommandDialogue()
 	if s.runtime.Dialog.Active() {
 		s.runtime.Dialog.Update(dt)
-		return
+		if !s.runtime.Dialog.Active() && s.actionDialoguePending {
+			s.finishPlayerActionDialogue()
+		}
 	}
 	s.updateSoul(dt)
+	s.runtime.Dialog.SetVisible(!s.menuActive)
 	s.runtime.Queues.ExecuteUpdate(dt)
 	s.runtime.Queues.ExecuteDelete()
 }
 
+func (s *demoScene) updatePhaseLabel() {
+	if s.battle != nil && s.phaseLabel != nil {
+		phase := string(s.battle.Phase)
+		if s.phaseLabel.Text != phase {
+			s.phaseLabel.SetText(phase)
+		}
+	}
+}
+
+func (s *demoScene) dialogueXPressed() bool {
+	return !s.menuActive && s.input.justPressed(ebiten.KeyX)
+}
+
+func (s *demoScene) dialogueAdvancePressed() bool {
+	return !s.menuActive &&
+		s.battle != nil &&
+		s.battle.Phase == democomponents.BattlePhasePlayerAction &&
+		s.input.justPressed(ebiten.KeyZ)
+}
+
+func commandLineForTurn(lines []string, turn int) (string, bool) {
+	if turn < 0 || turn >= len(lines) {
+		return "", false
+	}
+	return lines[turn], true
+}
+
+func (s *demoScene) maybeShowCommandDialogue() {
+	if s.battle == nil || s.battle.Phase != democomponents.BattlePhaseCommandSelect ||
+		s.commandDialogueTurn == s.battle.Turn || s.runtime.Dialog.Active() {
+		return
+	}
+	s.commandDialogueTurn = s.battle.Turn
+	s.runtime.Dialog.SetVisible(true)
+	line, ok := commandLineForTurn(s.battle.CommandLines, s.battle.Turn)
+	if ok {
+		s.runtime.Dialog.Show(line, battleDialogStyle(), sndText)
+	}
+}
+
+func (s *demoScene) soulVisible() bool {
+	if s.battle == nil {
+		return s.soul != nil
+	}
+	return s.soul != nil && (s.battle.Phase == democomponents.BattlePhaseCommandSelect ||
+		s.battle.Phase == democomponents.BattlePhaseTargetSelect)
+}
+
+func (s *demoScene) openMenu() {
+	if s.selectedButton < 0 || s.selectedButton >= len(s.buttonNames) {
+		return
+	}
+	options := s.menuOptions[s.buttonNames[s.selectedButton]]
+	s.closeMenu()
+	s.menuIndex = 0
+	style := text.TextStyle{
+		FontName: "determination", ScaleX: 0.25, ScaleY: 0.25,
+		FontHeight: 130, Color: color.White,
+		CharSpacing: 4,
+	}
+	if len(options) == 0 {
+		options = []menuOption{{label: "(No items)"}}
+	}
+	for i, option := range options {
+		y := 287.0 + float64(i)*32
+		entry := &menuEntry{
+			option:  option,
+			anchorX: 72, anchorY: y,
+			text: text.NewTextString("* "+option.label, 90, y-27, style),
+		}
+		entry.text.Queues = s.runtime.Queues
+		entry.text.Show()
+		s.menuEntries = append(s.menuEntries, entry)
+	}
+	s.menuActive = len(s.menuEntries) > 0
+	if s.menuActive {
+		s.moveSoulToMenuEntry()
+	}
+}
+
+func (s *demoScene) closeMenu() {
+	for _, entry := range s.menuEntries {
+		entry.text.Destroy()
+	}
+	s.menuEntries = nil
+}
+
+func (s *demoScene) moveSoulToMenuEntry() {
+	if s.menuIndex < 0 || s.menuIndex >= len(s.menuEntries) {
+		return
+	}
+	entry := s.menuEntries[s.menuIndex]
+	s.soulX, s.soulY = entry.anchorX, entry.anchorY
+}
 func (s *demoScene) updateSoul(dt time.Duration) {
-	const (
-		buttonY   = 475.0
-		boxLeft   = 39.0
-		boxTop    = 257.0
-		boxRight  = 601.0
-		boxBottom = 383.0
-		speed     = 160.0
-	)
 	if s.soul == nil {
 		return
 	}
+	if !s.menuActive && s.battle != nil && s.battle.Phase != democomponents.BattlePhaseCommandSelect {
+		s.soul.Update(dt)
+		return
+	}
 	if !s.menuActive {
+		previousButton := s.selectedButton
 		if s.input.justPressed(ebiten.KeyArrowLeft) {
 			s.selectedButton--
 		}
@@ -231,63 +425,214 @@ func (s *demoScene) updateSoul(dt time.Duration) {
 		if s.selectedButton >= len(s.buttonNames) {
 			s.selectedButton = 0
 		}
+		if previousButton != s.selectedButton {
+			s.playSFX(sndSqueak)
+		}
 		button := s.buttons[s.buttonNames[s.selectedButton]]
 		if button != nil && button.Transform() != nil {
 			s.soulX = button.Transform().X + 16
-			s.soulY = buttonY - 22
+			s.soulY = 453
 		}
 		s.syncButtonSelection()
 		if s.input.justPressed(ebiten.KeyZ) {
-			s.menuActive = true
 			s.menuConfirmed = false
-			s.soulX = boxLeft + 18
-			s.soulY = (boxTop + boxBottom) / 2
+			s.playSFX(sndSelect)
+			s.openMenu()
 		}
 	} else {
-		delta := speed * dt.Seconds()
-		if s.input.pressed[ebiten.KeyArrowLeft] || s.input.justPressed(ebiten.KeyArrowLeft) {
-			s.soulX -= delta
+		if s.input.justPressed(ebiten.KeyArrowUp) || s.input.justPressed(ebiten.KeyArrowLeft) {
+			previousIndex := s.menuIndex
+			s.menuIndex--
+			if s.menuIndex < 0 {
+				s.menuIndex = len(s.menuEntries) - 1
+			}
+			if s.menuIndex != previousIndex {
+				s.playSFX(sndSqueak)
+			}
+			s.moveSoulToMenuEntry()
 		}
-		if s.input.pressed[ebiten.KeyArrowRight] || s.input.justPressed(ebiten.KeyArrowRight) {
-			s.soulX += delta
+		if s.input.justPressed(ebiten.KeyArrowDown) || s.input.justPressed(ebiten.KeyArrowRight) {
+			previousIndex := s.menuIndex
+			s.menuIndex++
+			if s.menuIndex >= len(s.menuEntries) {
+				s.menuIndex = 0
+			}
+			if s.menuIndex != previousIndex {
+				s.playSFX(sndSqueak)
+			}
+			s.moveSoulToMenuEntry()
 		}
-		if s.input.pressed[ebiten.KeyArrowUp] || s.input.justPressed(ebiten.KeyArrowUp) {
-			s.soulY -= delta
-		}
-		if s.input.pressed[ebiten.KeyArrowDown] || s.input.justPressed(ebiten.KeyArrowDown) {
-			s.soulY += delta
-		}
-		s.soulX = math.Max(boxLeft+8, math.Min(boxRight-8, s.soulX))
-		s.soulY = math.Max(boxTop+8, math.Min(boxBottom-8, s.soulY))
 		if s.input.justPressed(ebiten.KeyZ) {
-			s.menuConfirmed = true
+			s.confirmMenuChoice()
 		}
 		if s.input.justPressed(ebiten.KeyX) {
 			s.menuActive = false
 			s.menuConfirmed = false
+			s.playSFX(sndSqueak)
+			s.closeMenu()
 			s.syncButtonSelection()
 		}
 	}
 	s.soul.Update(dt)
 }
 
+func (s *demoScene) confirmMenuChoice() {
+	if s.menuIndex < 0 || s.menuIndex >= len(s.menuEntries) || s.battle == nil {
+		return
+	}
+	selected := s.menuEntries[s.menuIndex].option
+	if selected.prototype == "" {
+		return
+	}
+	s.playSFX(sndSelect)
+	s.selectedMenuOption = selected
+	s.menuConfirmed = true
+	s.menuActive = false
+	s.closeMenu()
+	s.battle.SetPhase(democomponents.BattlePhasePlayerAction)
+	s.syncButtonSelection()
+	s.runtime.Dialog.Clear()
+	s.actionDialoguePending = true
+	dialogue := s.selectedMenuOption.dialogue
+	if len(dialogue) == 0 {
+		dialogue = []string{"* " + s.selectedMenuOption.label + "."}
+	}
+	for _, line := range dialogue {
+		s.runtime.Dialog.Show(line, battleDialogStyle(), sndText)
+	}
+	if !s.runtime.Dialog.Active() {
+		s.finishPlayerActionDialogue()
+	}
+}
+
+func (s *demoScene) finishPlayerActionDialogue() {
+	if s.battle != nil {
+		s.battle.Turn++
+		s.battle.SetPhase(democomponents.BattlePhaseEnemyTurn)
+	}
+	s.actionDialoguePending = false
+}
+
+func (s *demoScene) playSFX(name string) {
+	if player := s.runtime.Dialog.SoundPlayer; player != nil {
+		_ = player.PlaySound(name, 0.5)
+	}
+}
+
 func (s *demoScene) syncButtonSelection() {
 	for i, name := range s.buttonNames {
 		if button := s.buttons[name]; button != nil {
-			democomponents.SetBattleButtonActive(button, i == s.selectedButton && !s.menuActive)
+			democomponents.SetBattleButtonActive(button, s.buttonActive(i))
 		}
 	}
 }
 
+func (s *demoScene) buttonActive(index int) bool {
+	if index != s.selectedButton || s.menuActive {
+		return false
+	}
+	return s.battle == nil || s.battle.Phase == democomponents.BattlePhaseCommandSelect
+}
+
 func (s *demoScene) Draw(screen *ebiten.Image) {
-	screen.Fill(color.Black)
-	s.runtime.Queues.ExecuteDraw(screen)
+	if s.frame == nil || s.frame.Bounds().Size() != screen.Bounds().Size() {
+		s.frame = ebiten.NewImage(screen.Bounds().Dx(), screen.Bounds().Dy())
+	}
+	s.frame.Fill(color.Black)
+	s.runtime.Queues.ExecuteDraw(s.frame)
 	if s.preview != nil {
 		op := &ebiten.DrawImageOptions{}
 		op.ColorScale.ScaleAlpha(0.3)
-		screen.DrawImage(s.preview, op)
+		s.frame.DrawImage(s.preview, op)
 	}
-	if s.soul != nil {
-		s.soul.Draw(screen, s.soulX-8, s.soulY-8, 1, 1, 0)
+	if s.soulVisible() {
+		s.soul.Draw(s.frame, s.soulX-8, s.soulY-8, 1, 1, 0)
+	}
+	if s.phaseLabel != nil {
+		s.phaseLabel.Draw(s.frame)
+	}
+	s.drawPlayerStatus(s.frame)
+	s.camera.Apply(screen, func(target *ebiten.Image, ox, oy float64) {
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Translate(ox, oy)
+		target.DrawImage(s.frame, op)
+	})
+}
+
+func (s *demoScene) drawPlayerStatus(screen *ebiten.Image) {
+	if s.playerCombatant == nil {
+		return
+	}
+	s.playerNameText.Draw(screen)
+	s.playerLevelText.Draw(screen)
+	s.playerHPText.Draw(screen)
+
+	hp := s.playerCombatant.HP
+	maxHP := s.playerCombatant.MaxHP
+	value := fmt.Sprintf("%d/%d", hp, maxHP)
+	if value != s.playerHPValue {
+		s.playerHPValue = value
+		s.playerHPValueText.SetText(value)
+	}
+	barWidth := hpBarWidth(maxHP)
+	valueX := s.playerHPText.X + float64(barWidth) + 52
+	if valueX != s.playerHPValueX {
+		s.playerHPValueX = valueX
+		s.playerHPValueText.SetPosition(valueX, 384)
+	}
+	s.playerHPValueText.Draw(screen)
+	drawPlayerHPBar(screen, float32(s.playerHPText.X+40), 403, barWidth, 17, hp, maxHP)
+}
+
+func statusTextWidth(font *render.AnimatedIcon, value string, scale float64) float64 {
+	fallback := 0.0
+	if frame := font.CurrentState.CurrentFrameRef; frame != nil {
+		fallback = float64(frame.Image.Bounds().Dx())
+	}
+	width := 0.0
+	for _, character := range value {
+		if err := font.SetIconState(string(character)); err != nil {
+			width += fallback
+			continue
+		}
+		frame := font.CurrentState.CurrentFrameRef
+		if frame == nil {
+			width += fallback
+			continue
+		}
+		advance := frame.Advance
+		if advance <= 0 {
+			advance = float64(frame.Image.Bounds().Dx())
+		}
+		width += advance
+	}
+	return width * scale
+}
+
+func hpBarWidth(maxHP int) float32 {
+	if maxHP <= 0 {
+		return 0
+	}
+	width := float32(maxHP) * 1.5
+	return width
+}
+
+func drawPlayerHPBar(screen *ebiten.Image, x, y, width, height float32, hp, maxHP int) {
+	if width <= 0 || height <= 0 {
+		return
+	}
+	vector.DrawFilledRect(screen, x, y, width, height, color.RGBA{R: 255, A: 255}, false)
+	if hp < 0 {
+		hp = 0
+	}
+	if hp > maxHP {
+		hp = maxHP
+	}
+	if maxHP <= 0 {
+		return
+	}
+	filledWidth := width * float32(hp) / float32(maxHP)
+	if filledWidth > 0 {
+		vector.DrawFilledRect(screen, x, y, filledWidth, height, color.RGBA{R: 255, G: 255, A: 255}, false)
 	}
 }

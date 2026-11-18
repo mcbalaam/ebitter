@@ -10,6 +10,7 @@ components:
     maxHP: 20
     defense: 0
   enemyController:
+    name: Training Dummy
     lines:
       - The training dummy waits patiently.
       - The training dummy is still waiting.
@@ -17,5 +18,9 @@ components:
       - trainingDummy_check
     attacks:
       - trainingDummy_slowShot
+    fightDialogue:
+      - "* You attack the training dummy."
+    spareDialogue:
+      - "* You spared the training dummy."
     canBeSpared: true
     canFlee: false

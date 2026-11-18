@@ -12,6 +12,7 @@ type Item struct {
 	Target     string       `yaml:"target"`
 	Consumable bool         `yaml:"consumable"`
 	Effects    []EffectSpec `yaml:"effects"`
+	Dialogue   []string     `yaml:"dialogue"`
 }
 
 func (*Item) Type() string { return "item" }

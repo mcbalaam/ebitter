@@ -8,9 +8,10 @@ import (
 
 // BattleAction describes a selectable action and its resolved effects.
 type BattleAction struct {
-	Name    string       `yaml:"name"`
-	Target  string       `yaml:"target"`
-	Effects []EffectSpec `yaml:"effects"`
+	Name     string       `yaml:"name"`
+	Target   string       `yaml:"target"`
+	Effects  []EffectSpec `yaml:"effects"`
+	Dialogue []string     `yaml:"dialogue"`
 }
 
 func (*BattleAction) Type() string { return "battleAction" }
